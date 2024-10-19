@@ -1,0 +1,88 @@
+-  Flags::SkipInLast
+?  setFinalizer -- actually could be external wrapper auto onExit = handler( [&]() { ..do_whatever_you_want..; SAY_AND_RETURN(rv) } );
+?  consteval to build prettyFuncName (maybe bring back lazy build from the prettyName? or let user decide prefer compile-time or run-time lazy calculation)
+
+    check how SAY_JOIN()<<"smth" works (no arg in the body)
+
+    stacktrace should dynamically adjust skip with taking into account optional sanitizer's __intercept() -- it should work from first run
+
+
+Resolver
+     +? 1. stacktrace cache should take into account only visible part (take into account skip+depth) -- is that really important? normally calls printStackTrace include callplace and so includes that unique call place
+     +  2. special case - depth=1 -- in repeat should display not wrapped func - but complete "fnname() - path:lineno"
+     +  3. should remember fnname / lineinfo separately and construct (+update if required) from cache based on real flag (to make possible to change it runtime)
+//todo: adapt to any width of ptr. not only to 64bit
+//TODO: suppress or redirect pipe stderr
+// [doens't help because address is a separate line] TODO: add to addr2line key --addresses. In some circrumstances addr2line do not answer anything on given addr, but with that option it at least echo with addr so this at least just "addr\n" and prevent hanging up
+//TODO: Should be fallback if fail to run ADDR2LINE or not defined - to recover just func names
+//TODO: ignoreList (if substring found in the path or startswith). request +15 just in case. ignored are counted as a number but not displayed and doesn't includeded into size(depth)
+//TODO: cached ok - ignored means empty values in the cache(? then we need move out cache from addr2line) or be unordered_map of good/bad signatures
+
+
+ADDR2LINE - configure runtime
+
+do compile-time local test in case SENTRY_FUNC_COND()(), SENTRY_CONTEXT_COND()() --> leads to SentryStub
+do cmake project
+
+
++ debuglog_main.h: make EXECUTE_IF_DEBUGLOG2(code, codeForDisabled). And use second to define EXECUTE_IF_DEBUGLOG(code), SENTRYLOGGER_DO, SAY_AND_RETURN, IS_LOGGING_OBJ, SAY_VIRT_FUNC_CALL  - to make them common
+  or maybe EXECUTE_IF_DEBUGLOG_COND( cond, codeTrue, codeFalse ) -- and use to cases of multi-categ units just like SENTRY_FUNC_COND ??? - just do that in normal #if /#endif way ??
+
+ debuglog_main.h: ifndef DEBUG_LOGGING - check DEBUGLOG_CATEG_DEFAULT. And use as #define DEBUG_LOGGING DEBUGLOG_CATEG_1 || DEBUGLOG_CATEG_2
+     -- no that doesn't work if categories are not defined before such concatenation. But it work for single value if we unconditionally #include "debuglog_categories.h" before any #DEBUG_LOGGING check
+
+debuglog_setting.h - conditionally include debuglog.h and if not exists debuglog_main.h
+Kind::All == Kind::Parent. Purpose - to set all kinds to turn off. Maybe extra condition in isAllowed?
+enum Kind { All = 0, Parent = 0, Tracked = 8, Default = 9, starting from 10 user-defined kinds }
+
++make Kinds as integer, get/setKind(kind, bool|Level|signed) -- to define level or depth of stacktrace subKind  ( call as SAY_STACKTRACE( Settings::getKindState(DbgKind::StackTrace1Kind) )
+
+MAYBE:
+namespace
+{
+    // Special value - offset of member could be:
+    //   - zero (first member of title class)
+    //   - positive (offset against of that class)
+    //   - negative (offset against of base class)
+    // So we need special value to mark "fail to calculate offset"
+    constexpr int undefinedMagicValue = std::numeric_limits<int>::max();
+}
+ObjLogger::ObjLogger( void* ptr, const char* className, int depth, const char* comment /*=""*/)
+    : depth_( depth ), offs_( ptr ? ( reinterpret_cast<char*>(this) - reinterpret_cast<char*>(ptr) ) : undefinedMagicValue ), className_( className )
+
+
+MAKE A LIBARARY: make as a lib with extension (where do own debug_categories.h [and includes kinds list], tostr_my_handlers.h, )
+//lib.h
+namespace DebugLib {
+    // Declaration of the external function that must be provided by the user
+    // extern "C" can't be used directly with namespaces, so we use external linkage
+    extern int get_debuglog_kinds_maxnumber();
+}
+// lib.cpp
+#if defined(__GNUC__)
+namespace DebugLib {
+    int get_debuglog_kinds_maxnumber() __attribute__((weak));
+}
+
+(user.cpp)
+namespace DebugLib {
+    int get_debuglog_kinds_maxnumber() { return 42;} // User implementation
+}
+
+
+debugresolve -- skipList/stopList. in both cases if starts from $ - means lookup in the location (otherwise in the funcname), starts from * or $* - means lookup anywhere (otherwise)
+make it externally initialized
+maybe rest of settings also move to common workspace
+cache all known stop/skip/ok addresses (or maybe mark in common cache as a special strings)?
+	skip -- "void std::__invoke_impl<", "std::enable_if<is_invocable_r_v<", "std::_Function_handler<", "$*/bits/std_function.h", "$*/bits/shared_ptr_base.h"
+        stop -- 
+
+REMARK TO DOC- the library is not tested in multithreaded env
+SAY_AND_RETURN - for SILENT case - do printEnter("rv=%s") instead "leave scope"
+
+
++ isn't check that value of "enum class" is not bigger than largest element useless? -> ok
++todo: better unique_ptr/shared_ptr
+
+modify - build results (library and tests) in build subdir
+why tostr.h is not included in tests?
