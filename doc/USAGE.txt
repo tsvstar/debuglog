@@ -1,0 +1,357 @@
+NEED TO REWRITE
+
+Library consists of four modules:
+   tostr       - Get as string values of variables and expressions with names
+   debuglog    - Scope/function enter/exit and regular logging (including stacktrace)
+   debug_watch - "property" extension. Watch access/modify to class members of built-in types.
+                 Watch where we use member which have no setter/getter and have a lot of occurences.
+   objlog      - Tracking of objects lifecycle.
+		 Lightweight leak/double free catching, tracking objects usage.
+
+Tested on Linux GCC and CLANG.
+C++17 (GCC 7.1 or CLANG 4.0) is required. C++20 is recommended (to use designated initializer)
+Depends on fmt library (https://fmt.dev/).
+Includes magic_enum library (https://github.com/Neargye/magic_enum).
+//C++17 -- for namespace N1::N2::, string_view
+
+
+1. TOSTR module
+===================
+
+Purpose is pretty-printing of variables of any type. Could be extended to printing any your custom classes.
+Examples of usage and extending could be found at tests/test_tostr.cpp
+
+1.1. Using TOSTR_MACRO
+
+   #include "tostr.h"           // include module
+   int i=1,i2=3;
+   std::string value("str");
+   TOSTR_ARGS( "Here is my values:", i, i2, value );	// -> "Here is my values: i = 1, i2 = 3, value =\"str\""
+   TOSTR_JOIN( "Glue", " this ", value, "WITH", i );	// -> "Glue this strWITH1"
+   int res = (i + i2) / abs(-i);
+   // just copy expression and separate it to tokens to see pretty output
+   TOSTR_EXPR( res, "= (", i, "+", i2, ") /", abs(-i) ); // -> "res{4} = ( i{1} + i2{3} ) / abs(-i){1}"
+
+   // Your own custom handler could support "short"(default) and "extended" output for complex class.
+   // That could be useful if we would like to be able to see full info, but wouldn't like overload regular output
+   // Use TOSTR_ARGS_EXTENDED() and TOSTR_EXPR_EXTENDED for this cases
+
+1.2. Extra useful utility functions
+
+    // Transform ptr to its addr
+    std::string ::tsv::util::tostr::hex_addr(const void* ptr );
+
+1.3. Extending pretty-printer with your class
+
+   (a) Add forward declaration of your class to tostr_handler.h right above "/** ... add your own classes here ***/"
+	// Forward declarations
+	class TrackedItem;
+	/** ... add your own classes here ***/
+
+   (b) Add forward declaration of your pretty-printer handler right below "... Your own classes special handlers  ..." comment block.
+       ToStringRV __toString( const ::TrackedItem& value, int mode );
+
+   (c) Define anywhere in your code body of this handler
+
+        // this include is for compiler check forward declaration match
+        #include "tostr_handler.h"
+
+        // go to handler implentation namespace
+        namespace tsv::util::tostr::impl
+        {
+            // Handler definition.
+            // Just replace with your own class name
+            // And take into account that now we are inside of namespace, so use ::
+            ToStringRV __toString( const ::TrackedItem& value, int mode )
+            {
+                using namespace ::tsv::util;
+
+                // Process all three modes
+                if ( mode == ENUM_TOSTR_DEFAULT )
+                {
+                    // return values have to be { std::string, value }
+                    return { tostr::toStr(value.x_), true };
+                }
+                else if ( mode == ENUM_TOSTR_REPR )
+                    return { "{x="+tostr::toStr(value.x_)+"}", true };
+
+                // Extended info
+                return { "{ addr=" + tostr::hex_addr(&value) +", x="+tostr::toStr(value.x_)+"}", true };
+            }
+
+        }
+
+1.4. Known Pointers Tags
+    It is possible to mark pointers to known valuable object with talkable name.
+    For example, mark objects A,B,C with that names - and then in debug log it is easy to read 
+    which exactly object we manipulating with.
+
+    void test_func(Class* ptr)
+    {
+        using namespace tsv::util::tostr;
+        
+        known_pointers::registerPointerName(ptr,"PTR1");
+        std::cout << toStr(ptr);    // "PTR1[0xaa]"
+        known_pointers::registerPointerNameWType(ptr,"PTR2");
+        std::cout << toStr(ptr);    // "PTR2(Class)[0xaa]"
+        if (known_pointers::isPointerRegistered(ptr)) //true
+           std::cout << known_pointers::getName(ptr); // "PTR2(Class)"
+        known_pointers::deletePointer(ptr);
+        std::cout << toStr(ptr);    // "0xaa"
+    }
+
+
+1.5. Settings
+    PREVENT_MAGIC_ENUM - if defined then save compilation time by excluding magic_enum library.
+        Consequence of that is "id" instead of meaningfull names for enum is printed.
+
+    tsv::util::tostr::settings::
+      showNullptrType - if true, print type of pointer for nullptr case
+      showUnknownValueAsRef - if true, print reference for case of unknown type
+      showPtrContent - if true, print content of pointer (except fn ptr). Will segfault if malformed/deleted ptr
+      showFnPtrContent - if true, print resolved name of function to which pointer refer to
+
+
+2. DEBUGLOG module
+==================
+
+The module is designed to:
+  (a) easy and laconic usage
+  (b) lightweight if not used:
+      * remove debug output code from the translation unit completely with single define
+      * if the scope has turned off debug in runtime - it is very cheap and no arguments for output is processed
+  (c) tracking entering/exiting scopes (including functions)
+  (d) multiple kinds (groups) makes possible to separately turn on/off logging for features
+  (e) easy identify on which nesting level we are now
+  (f) using output handler - attach it to your own logging system
+  (g) is the base level for other logging feature (object tracking, call trace, member access tracking )
+
+Examples are placed in tests/test_sentry.cpp
+
+2.1. Some easy rules
+
+  (a) Do not include "debuglog.h" inside of your header files.
+      Otherwise you will not be able to debug only some particular files instead of whole system()
+
+  (b) To turn on/off logging globally, change DEBUG_LOGGING define in debuglog.h
+      To enforced turning on/off for some exact file, just include
+         #define DEBUG_LOGGING [ 0|1 ]
+      before
+         #include "debuglog.h"
+
+  (c) It is assumed to use macro from section 2.2 for debugger output.
+       You can use SAY_* even without declaration SENTRY_ inside of context/function.
+
+
+2.2. Macro
+
+    Use them like functions:
+
+    SENTRY_FUNC()                 - simple sentry on entering/leaving function
+    SENTRY_FUNC({.level=SentryLogger::Info, .kind=SentryLogger::Feature1, .enabled=flag},"Test") -- Advanced func sentry
+    SENTRY_FUNC({}, arg1, arg2, "Test", this) << arg3.toString();  -- func with displaying arguments + sample stream syntax
+
+    SENTRY_SILENT()               - same as SENTRY_FUNC but with no enter/leave output (just introduce context and level)
+    SENTRY_SCOPE( "ContextName", {.level=SentryLogger::Info}, arg1 ) - same as SENTRY_FUNC but with explicitly defined context name    
+                                    (for loop, if branch and over nested scopes)
+    SENTRY_SCOPE( "ContextName", {.flags=SentryLogger::Flags::Timer}) - example of calculate time of exection of scope
+
+    SAY_DBG( "std::string_view" ) - print string if context level is below system level and context kind is allowed
+    SAY_DBG() << arg1;            - stream syntax
+    SAY_STACKTRACE( [ depth [, skip [, enforce]]] ) - print call trace to current function
+    SAY_ARGS( var1, var2,.. );    - print variables (names and values)
+    SAY_EXPR( res,"=",x,"+",1 );  - SAY_DBG( TOSTR_EXPR(...)); So use it to see how expressions calculated.
+    SAY_AND_RETURN(rv);           - return "rv" and print it in leave message
+
+
+
+    EXECUTE_IF_DEBUGLOG( code );                   - include code only if logging is active. for example:
+    EXECUTE_IF_DEBUGLOG( sentry.startTiming() );   - .. say how much time took current sentry scope execution
+
+    IS_LOGGING_OBJ(...)
+
+
+
+
+2.3. Example
+
+    void func1() {
+        SENTRY_FUNC();    // "{func1} >> Enter scope"
+        SAY_DBG("test");  // "{func1} test"
+        func2(3);
+    }                     // "{func1} >> Leave scope"
+
+    int func2(int x) {
+        SENTRY_FUNC({}, x);    // "{func2} >> Enter x = 3"
+        SAY_STACKTRACE();      // calltrace to this point
+        for (int y = 1; y < 2; y++) {
+          ++x;
+          SENTRY_CONTEXT( TOSTR_ARGS("LOOP",y), {}, "into loop" );
+                                // "LOOP y=1"
+          SAY_ARGS(x, y);       // "{LOOP y=0} x = 3, y = 1"
+        }
+        SAY_DBG("event_print_in_func2");
+        SAY_AND_RETURN(10);
+    }                            // "{func2} >> Leave scope rv=10"
+
+Output sample with comments
+
+[DBG]01>{func1} >> Enter scope
+[DBG]01 {func1} test
+[DBG]02>>{func2} >> Enter x =3
+[DBG]02  {func2} .... here multiple lines of stacktrace)
+[DBG]03>>>{LOOP y=1} >> Enter into loop
+[DBG]03   {LOOP y=1} x = 3, y = 1
+[DBG]03<<<{LOOP y=1} >> Leave scope
+[DBG]02  {func2} event_print_in_func2
+[DBG]02<<{func2} >> Leave scope. rv = 10
+[DBG]01<{func1} >> Leave scope
+
+[DBG]  - to easy grep in log debug output
+01, 02 - nesting level (detect change, grep,)
+>, >>  - indentation regarding to nesting on enter/leave
+         inside of scope events are with same indentation but with spaces
+{func1} - name of context (easy to find)
+  >> Enter - that is always beginning of enter scope message (easy to find)
+  >> Leave message - that is always leave scope message (easy to find)
+
+2.3. IS_LOGGING_OBJ
+
+
+2.5. Settings
+
+    SentryLogger::setLogStdoutSystemFlag( bool flag );  // if true - duplicate output to stdout
+                                                        // each scope have own flag initialized from this value
+    SentryLogger::setNestedLevelMode( bool flag );  // turn on/off indentation with nesting level in logging
+
+    // in debuglog.cpp
+    bool SentryLogger_contextname_vwrite = true;      // include {contextname} as event prefix in vwrite()
+
+2.6. Output handler
+    #include "debuglog.h"
+    using namespace ::tsv::debug;
+    namespace {
+      void testLoggerHandlerSentry( const char* fmt, void* args )
+      {
+          std::string output;
+          output = ::tsv::util::tostr::strfmtVA( fmt, static_cast<va_list*>(args) ) + "\n";
+          std::cout<< output;
+      }
+    }
+    // Use inside of main or comment out definition in debuglog.cpp
+    LoggerHandler::handler_s = testLoggerHandlerSentry;
+
+
+3. EXTRA FEATURES
+===================
+
+3.1. CALLTRACE
+    Integrated into debuglog mudule.
+    Based on resolving by external addr2line linux utility.
+
+    Use:
+    SAY_STACKTRACE( depth,      // int. how many last call frames need to display (<0 means all of them). Default = -1
+                    skip,       // int. offset of frames ( 1 = do not include this one, 2 = this and prev, ..). Default = 0
+                    enforce     // bool. if true then print stacktrace even if btEnabled setting =false. Default = false
+                  );
+
+  3.1.1. CALLTRACE settings
+    To activate modify lines below in debugresolve.cpp:
+      #define BACKTRACE_AVAILABLE 1
+      #define ADDR2LINE_AVAILABLE 1
+    otherwise no backtrace feature and/or func name resolving will be available
+
+    Inside of namespace ::tsv::debug::settings we have:
+
+      // That is the list of stop-words. If stacktrace reach this one we don't interested to go deeper
+      std::string backtraceStopWords[] = { "main" };
+
+      // Global flag to suppress stacktrace output. If false then no stacktrace produce on any call if no enforce=true
+      bool btEnabled = false;                 // If false, then printBackTrace() do nothing.
+
+    Also in debugresolve.cpp defined some compile-time settings to fine tune stacktrace output
+       bool btIncludeLine = true;     // if true, include to stacktrace "at file:line"
+       bool btIncludeAddr = true;     // if true, include to stacktrace addr
+       bool btShortList = true;       // if true, remember already printed stacktraces and just say it's number on repeat
+       bool btShortListOnly = false;  // if true, do not print full stack - only short line
+       int  btNumLeadFuncs = 4;       // how many lead functions include into collapsed stacktrace
+
+3.2. WORK WITH POINTERS
+
+    // Just get pointer as hex
+    ::tsv::util::tostr::hex_addr( ptr )
+
+    // Resolve pointer "addr" to function name ( if addLineNum, then include "at file:lineno" )
+    std::string s = resolveAddr2Name( func_addr, includeLineNo_Bool /*= false*/ );
+
+    // Determine which one virtual function will be called for given object
+    // See an example test/test_objlog.cpp
+    // (looks like this trick works only in GCC)
+    SAY_DBG( "CALL %s", ::tsv::debug::resolveAddr2Name( WHICH_FUNC_WILL_BE_CALLED( BaseClass, obj, virtualFunc ), 
+                               false, 		// do not include lineno
+                               true             // show hex addr of function
+                               ).c_str() );
+    obj->virtualFunc();
+
+4. OBJLOG module
+===================
+    Just add one member - and you will see object lifecycle: constructing, assignment, moving, destroying.
+    It could include stacktrace to see where exactly that was happened. Also easy to catch incorrect delete, leaks.
+    This make possible to specific class tracking (so it is faster then total valgrind), see in context.
+    Output goes to DEBUGLOG module
+
+See tests/test_objlog.cpp
+
+  HOWTO USE:
+   0. Include header after all other included headers.
+           //#define DEBUG_OBJLOG 0	// uncomment to wipe-out from code tracking object
+           #include "objlog.h"
+        ( please note that if class have ctors defined in .c - you need to include the file there again)
+   1. Add private member to class
+           ObjLogger debug_sentry_;
+   2. Add to initalization list of ctor
+             // backtracdepth - int. how much last frames calltrace should be included on any object event
+             ,debug_sentry_( this, "ClassName", backtracedepth, "CommentIfNeeded")
+   3. Add to initalization list of copy ctor
+             ,debug_sentry_( obj.debug_sentry_ )
+   4. If operator=, copy or move ctor are not default - include this sentry there.
+
+   To disable logging of some object class - just replace "this" to nullptr (so we can track only interested kind of object instead of all)
+
+   SETTINGS
+   If flag ObjLogger::includeContextName_s is true - then {contextname} will be included into stacktrace, otherwise just spaces
+
+
+5. DEBUGWATH module
+===================
+
+   To log access to members which are built-in types property mechanizm could be used:
+
+   1. Add include 
+      # include "debugwatch.h"
+
+   2. Comment out member
+      // int member_;
+
+   3A. Add below macro definition of property
+      // Create property "member_" which is wrapper for "int member_real"
+      // And track all access to it, with writing involved values in REPR mode and context stacktrace with depth 3 frames
+      // See argument details in #define def_prop_watch
+      def_prop_watch( OwnerClass, int, member_, member_real_, 3, ::tsv::util::tostr::ENUM_TOSTR_REPR );
+
+   3B. Or if you only interested to see changes, not read access you can do following
+      // Declare underlying real member
+      int member_real_;
+      // Define property with custom setter/getter
+      //  * getter just return value
+      //  * setter track access with no callstack (0) and no value tracking
+      def_prop( int, OwnerClass, member_,
+                { return self.member_real__; },
+                { ::tsv::debug::Watch_Setter( self, "member_", self.member_real_, value, 0, -1, comment ); }
+              );
+
+
+TODO - watched property have to be able to included into TOSTR_* macro
+TODO - no imlicit conversion. so (obj.str_prop + "") doesn't work. have to rewrite std::string(obj.str_prop)
+TODO - watch static/global/local variables
+
