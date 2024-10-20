@@ -230,8 +230,7 @@ Addr2LineResolver::CacheEntry Addr2LineResolver::request(const void* addr )
     if ( child_pid_ == 0 )
     {
         int n = snprintf(buf_, sizeof(buf_), ADDR2LINE_PATH " -f -C -e `readlink /proc/%d/exe`", getpid() );
-//todo - warning signed vs unsigned
-        if (n+1 >= sizeof(buf_))
+        if (static_cast<std::size_t>(n+1) >= sizeof(buf_))
         {
             //SAY_DBG( "Unable to run addr2line - command buffer overflow" );
             child_pid_=-1;
@@ -336,7 +335,7 @@ void Addr2LineResolver::pipe_getline()
         if ( child_pid_ <= 0 )
                 return;
 
-        int idx = 0;
+        std::size_t idx = 0;
         char ch;
         int len;
         for(;;)
@@ -355,7 +354,6 @@ void Addr2LineResolver::pipe_getline()
                 buf_[idx] = 0;
                 return;
             }
-//todo - warning signed vs unsigned
             if ( idx > ( sizeof(buf_) - 5 ) )
                 continue;
             buf_[idx++] = ch;

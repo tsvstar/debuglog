@@ -8,6 +8,13 @@
 namespace tsv::debuglog::tests
 {
 
+
+std::string removeAddr( std::string input )
+{
+    std::regex hex_pattern("(0x[0-9a-f]+)", std::regex::icase);
+    return std::regex_replace(input, hex_pattern, "0xADDR");
+}    
+
 bool test( bool& isOkTotal, const char* prefix, const std::string& val,  std::function<bool(std::string_view)> fn)
 {
     std::cout << prefix << val << "\n";
@@ -19,8 +26,10 @@ bool test( bool& isOkTotal, const char* prefix, const std::string& val,  std::fu
 
 }
 
-bool test( bool& isOkTotal, const char* prefix, const std::string& val, const char* expected = nullptr, bool checkEquality = true )
+bool test( bool& isOkTotal, const char* prefix, std::string val, const char* expected = nullptr, bool removeAddrFlag = false, bool checkEquality = true )
 {
+    if (removeAddrFlag)
+       val = removeAddr(val);
     std::cout << prefix << val << "\n";
     if ( expected == nullptr )
     {
@@ -34,12 +43,6 @@ bool test( bool& isOkTotal, const char* prefix, const std::string& val, const ch
         std::cout << "TEST FAIL! Should be " << expected << "\n";
     return isOk;
 }
-
-std::string removeAddr( std::string input )
-{
-    std::regex hex_pattern("(0x[0-9a-f]+)", std::regex::icase);
-    return std::regex_replace(input, hex_pattern, "0xADDR");
-}    
 
 // Declaration from another test_*.cpp
 bool test_tostr();

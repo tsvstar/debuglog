@@ -86,3 +86,5 @@ SAY_AND_RETURN - for SILENT case - do printEnter("rv=%s") instead "leave scope"
 
 modify - build results (library and tests) in build subdir
 why tostr.h is not included in tests?
+
+TOSTR_ARGS - if join with literal do not add comma before too

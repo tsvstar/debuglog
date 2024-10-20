@@ -168,7 +168,7 @@ struct ToStringRV
 // Default handler
 template<typename T>
 typename std::enable_if< !std::is_arithmetic<T>::value && !std::is_enum<T>::value, ToStringRV >::type
-__toString(const T& value, int mode)
+__toString(const T& /*value*/, int /*mode*/)
 {
     // default case - generic kind of type
     return { "", false };   // no value
@@ -177,7 +177,7 @@ __toString(const T& value, int mode)
 // Integral + floating_point handler
 template<typename T>
 typename std::enable_if< std::is_arithmetic<T>::value, ToStringRV >::type
-__toString(const T& value, int mode)
+__toString(const T& value, int /*mode*/)
 {
     return { std::to_string( value ), true };
 }
@@ -257,7 +257,7 @@ Usage:
 ************************************************/
 // Main implementation for values
 template<typename T>
-typename std::enable_if< !std::is_pointer<T>::value, std::string >::type
+typename std::enable_if< !std::is_pointer<T>::value && !std::is_function<T>::value, std::string >::type
 //typename std::enable_if<!std::is_pointer<T>::value && !std::is_base_of<C, T>::value, void>::type
 toStr(const T& val, int mode = ENUM_TOSTR_DEFAULT)
 {
@@ -279,6 +279,31 @@ toStr(const T& val, int mode = ENUM_TOSTR_DEFAULT)
     return decoded.value_;
 }
 
+// Special case for function pointers
+template<typename Ret, typename... Args>
+std::string toStr(Ret (*val)(Args...), [[maybe_unused]]int mode = ENUM_TOSTR_DEFAULT)
+{
+    if ( !val )
+    {
+        if ( settings::showNullptrType )
+            return "nullptr (" + getTypeName<Ret(*)(Args...)>() + ")";
+        else
+            return "nullptr";
+    }
+
+    std::string rv = hex_addr(reinterpret_cast<const void*>(val));
+    if (settings::showFnPtrContent)
+    {
+        rv += " (" + getTypeName<Ret(*)(Args...)>() + "/"
+             + tsv::debuglog::resolveAddr2Name(reinterpret_cast<const void*>(val),false,false)
+             + ")";
+    }
+
+    return rv;
+}
+
+//TODO: special case for std::function<> and lambda(?) -- or detect it in const T& ...
+
 
 // Main implementation for pointers
 template<typename T>
@@ -293,29 +318,18 @@ std::string toStr(const T* val, int mode = ENUM_TOSTR_DEFAULT)
     }
 
     // if known shortcut, return it
-    std::string rv = known_pointers::getName(val);
+    std::string rv = known_pointers::getName(reinterpret_cast<const void*>(val));
     if ( !rv.empty() )
-        rv += "[" + hex_addr(val) + "]";
+        rv += "[" + hex_addr(reinterpret_cast<const void*>(val)) + "]";
     else
-        rv = hex_addr(val);
+        rv = hex_addr(reinterpret_cast<const void*>(val));
 
     // If val is not pointer to pointer, then show its content
     // Important note: pointer should be valid
     if ( !std::is_pointer<T>() )
     {
-        //using ;
-
         // Get content
-        if ( std::is_function<T>::value)
-        {
-            if (settings::showFnPtrContent)
-            {
-                rv += " (" + getTypeName<T>() + "/"
-                     + tsv::debuglog::resolveAddr2Name(reinterpret_cast<const void*>(val),false,false)
-                     + ")";
-            }
-        }
-        else if (settings::showPtrContent)
+        if (settings::showPtrContent)
         {
             auto decoded = impl::__toString( *val, mode );
             // If no known converter found, use typename as content
@@ -340,6 +354,7 @@ std::string toStr(const char* v, int mode = ENUM_TOSTR_DEFAULT);
 namespace impl
 {
 
+//TODO: why it is not catched?
 template<typename... Types>
 ToStringRV __toString(const std::variant<Types...>& value, int mode)
 {
@@ -355,6 +370,7 @@ ToStringRV __toString(const std::unique_ptr<T, Deleter>& value, int mode)
     return {"unique_ptr:" + rv, true};
 }
 
+//TODO: why it is not catched?
 template<typename T>
 ToStringRV __toString(const std::shared_ptr<T>& value, int mode)
 {
@@ -362,11 +378,12 @@ ToStringRV __toString(const std::shared_ptr<T>& value, int mode)
     return {"shared_ptr(" + std::to_string(value.use_count()) + "):" + rv, true};
 }
 
+//TODO: why it is not catched?
 template<typename T>
 ToStringRV __toString(const std::weak_ptr<T>& value, int mode)
 {
     std::string rv = tsv::util::tostr::toStr( value.get(), mode );
-    return {"sweak_ptr(" + std::to_string(value.use_count()) + "):" + rv, true};
+    return {"weak_ptr(" + std::to_string(value.use_count()) + "):" + rv, true};
 }
 
 

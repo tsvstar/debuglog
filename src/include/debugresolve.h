@@ -23,7 +23,7 @@ namespace tsv::debuglog
 
     // Get backtrace
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wattributes"
     [[clang::noinline]] [[gnu::noinline]]
     std::vector<std::string> getStackTrace(int depth = -1, int skip = 0);
 #pragma GCC diagnostic pop
