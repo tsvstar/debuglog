@@ -172,7 +172,7 @@ Settings::Operation::Operation(SentryLogger::Level level, Type type/*= = Type::S
     enumValue_ = static_cast<SentryLogger::EnumType_t>(level);
 }
 
-Settings::Operation::Operation(Settings::Operation::EnableStackTraceTag kind, bool enableFlag)
+Settings::Operation::Operation(Settings::Operation::EnableStackTraceTag /*kind*/, bool enableFlag)
 {
     type_ = Type::SetEnableStacktraceFlag;
     value_ = enableFlag;
@@ -281,7 +281,7 @@ std::string_view findFuncName(std::string_view prettyName, std::string_view func
     {
         pos = prettyName.find(funcName, pos);
         // No pattern found - use short name
-        if (pos = std::string_view::npos)
+        if (pos == std::string_view::npos)
             return funcName;
         if (pos < 1)
             continue;
@@ -335,8 +335,8 @@ SentryLogger::SentryLogger(InitArgs args,
     , logLevel_(args.enabled ? args.level : Level::Off)
     , kind_(args.kind > Kind::NumberOfKinds ? Kind::Off : args.kind)
     , relatedObj_(args.object)
-    , prettyFuncName_(prettyName)
     , contextName_(name)
+    , prettyFuncName_(prettyName)
 {
     if (checkFlags(Flags::Timer))
         startTime_ = getCurTimestampAsDouble();
@@ -510,7 +510,7 @@ bool SentryLogger::isAllowed(SentryLogger::Stage stage, SentryLogger::Level leve
 {
     return level <= Settings::logLevel_s
            && ( checkFlags(Flags::Force)
-                || (isStageAllowed(flags_, stage) && Settings::isKindAllowed(kind_)));
+                || (isStageAllowed(flags_, stage) && Settings::isKindAllowed(kind)));
 }
 
 

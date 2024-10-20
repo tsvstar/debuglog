@@ -72,8 +72,8 @@ public:
     bool detailed_ = true;
     bool joinOnce_ = false;
 
-    int index_;                         // current index of argument
-    std::string acc_str_;               // string which accumulate output of do_print()
+    std::size_t index_;               // current index of argument
+    std::string acc_str_;             // string which accumulate output of do_print()
 
     Printer( Mode mode, std::vector<const char*> names )
          : names_( names ), mode_( mode )
@@ -138,7 +138,7 @@ private:
                 acc_str_ += ( (prev != '"') ? ", " : " " );
             }
 
-            // tune format
+            // tune format //todo: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<const char*>::size_type’ {aka ‘long unsigned int’}
             if ( index_ >= names_.size())
             {
                 asisFlag = false;
@@ -156,7 +156,7 @@ private:
         }
         else if ( mode_ == Mode::Expr && !joinOnce_)
         {
-            // tune format
+            // tune format //todo: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<const char*>::size_type’ {aka ‘long unsigned int’}
             if ( index_ >= names_.size())
             {
                 asisFlag = false;

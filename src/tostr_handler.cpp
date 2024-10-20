@@ -94,7 +94,7 @@ std::string hex_addr(const void* ptr)
     if ( !ptr )
         return "nullptr";
     else
-        return TOSTR_FMT("0x{:x}", ptr);
+        return fmt::format("{}", ptr);
 }
 }   // 
 

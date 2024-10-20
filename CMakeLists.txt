@@ -6,8 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(fmt)
-
+find_package(fmt QUIET)
+if(NOT fmt_FOUND)
+    #message(WARNING "fmt library not found! Switching to C++20")
+    set(CMAKE_CXX_STANDARD 20)
+endif()
 
 # Option to choose compiler
 option(USE_CLANG "Use Clang compiler" OFF)
@@ -16,6 +19,10 @@ if(USE_CLANG)
     set(CMAKE_C_COMPILER clang)
     set(CMAKE_CXX_COMPILER clang++)
 endif()
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)   # Static libraries (e.g., libmylib.a)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)   # Shared libraries
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)   # Executables (e.g., tests)
 
 # Define source files
 set(LIB_SOURCES
@@ -48,6 +55,9 @@ target_link_libraries(mylib
         fmt::fmt
 )
 
+
+#set_target_properties(mylib PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/build )
+
 # Create test executable
 add_executable(tests ${TEST_SOURCES})
 
@@ -62,6 +72,9 @@ target_include_directories(tests
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+
+#set_target_properties(tests PROPERTIES  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/build )
 
 # Add compiler warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

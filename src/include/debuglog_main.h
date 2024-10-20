@@ -227,7 +227,7 @@ class SentryLogger
             StreamHelper& operator<< <Level>(const Level& level);*/
 
         private:
-            std::ostringstream* stream_ = nullptr;
+            std::ostringstream* stream_ = nullptr; //todo - try void*
             SentryLogger& logger_;
             // operator<< syntax shouldn't be used in other manner than temporary var, so context name exists longer than this object,
             // so we can use string_view
