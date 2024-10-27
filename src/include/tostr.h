@@ -60,6 +60,7 @@ enum Mode : short {
 
 enum Details : short {
         Normal,
+        NormalHex,
         Extended
      }; 
 
@@ -69,7 +70,7 @@ public:
 
     std::vector<const char*> names_;  // List of variable names (used for Mode::Args, Mode::Expr)
     Mode mode_;                       // Printing mode
-    bool detailed_ = true;
+    Details detailed_ = Details::Normal;
     bool joinOnce_ = false;
 
     std::size_t index_;               // current index of argument
@@ -103,7 +104,10 @@ private:
     template<typename... Tail>
     std::string print(Mode head, Tail&&... tail)
     {
-        mode_ = head;
+        if (head==Mode::JoinOnce)
+           joinOnce_ = true;
+        else
+           mode_ = head;
         index_++;
         return print( std::forward<Tail>( tail )... );
     }
@@ -111,7 +115,7 @@ private:
     template<typename... Tail>
     std::string print(Details head, Tail&&... tail)
     {
-        detailed_ = (head == Details::Extended);
+        detailed_ = head;
         index_++;
         return print( std::forward<Tail>( tail )... );
     }
@@ -131,14 +135,6 @@ private:
         // 1. Tune output format + print separator if needed
         if ( mode_ == Mode::Args && !joinOnce_)
         {
-            // add separator
-            if ( !acc_str_.empty() )
-            {
-                char prev = names_[index_-1][0];
-                acc_str_ += ( (prev != '"') ? ", " : " " );
-            }
-
-            // tune format //todo: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<const char*>::size_type’ {aka ‘long unsigned int’}
             if ( index_ >= names_.size())
             {
                 asisFlag = false;
@@ -150,13 +146,24 @@ private:
                             || startsWith(names_[index_], toStrDetectLiteral_));
                 excludeName = asisFlag;
             }
-            modeToStr = ( !detailed_  ? ENUM_TOSTR_REPR : ENUM_TOSTR_EXTENDED );
+
+            // add separator
+            if ( !asisFlag && !acc_str_.empty() )
+            {
+                char prev = names_[index_-1][0];
+                acc_str_ += ( prev != '"' ? ", " : " " );
+            }
+
+            modeToStr = ( detailed_==Details::Normal  ? ENUM_TOSTR_REPR : 
+                          (detailed_==Details::NormalHex ? ENUM_TOSTR_REPR_HEX : ENUM_TOSTR_EXTENDED) );
             //betweenToken = " = ";         //use default: " = " between name and value
             //suffix = "";                  //use default "" after value
+//                betweenToken = "{";         //between name and value
+//                suffix = "} ";              //after value
+
         }
         else if ( mode_ == Mode::Expr && !joinOnce_)
         {
-            // tune format //todo: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<const char*>::size_type’ {aka ‘long unsigned int’}
             if ( index_ >= names_.size())
             {
                 asisFlag = false;
@@ -168,7 +175,8 @@ private:
                             || startsWith(names_[index_], toStrDetectLiteral_));
                 excludeName = asisFlag;
             }
-            modeToStr = ( !detailed_ ? ENUM_TOSTR_REPR : ENUM_TOSTR_EXTENDED );
+            modeToStr = ( detailed_==Details::Normal  ? ENUM_TOSTR_REPR : 
+                          (detailed_==Details::NormalHex ? ENUM_TOSTR_REPR_HEX : ENUM_TOSTR_EXTENDED) );
             if ( !excludeName )
             {
                 betweenToken = "{";         //between name and value
@@ -184,6 +192,7 @@ private:
         {
             // tune format
             //modeToStr = ENUM_TOSTR_DEFAULT;// use default: print values as STR
+            modeToStr = ( (detailed_==Details::NormalHex &&   std::is_integral<Head>::value) ? ENUM_TOSTR_REPR_HEX : ENUM_TOSTR_DEFAULT);
             //excludeName = true;            // use default: no varnames needed
             //asisFlag = ASIS;               // use default: always print as is
             //betweenToken = "no matter";    // use default: because have no matter
@@ -193,7 +202,8 @@ private:
         // 2. Do output
         if ( !excludeName )
             acc_str_ += std::string(names_[index_]) + betweenToken;
-        acc_str_ += toStr( head, asisFlag ? ENUM_TOSTR_DEFAULT : modeToStr ) + suffix;
+   //     acc_str_ += "<" + std::to_string(index_)+":"+std::to_string(static_cast<int>(mode_))+":"+std::to_string(joinOnce_)+">"+toStr( head, asisFlag ? ENUM_TOSTR_DEFAULT : modeToStr ) + suffix;
+        acc_str_ +=  toStr( head, asisFlag ? ENUM_TOSTR_DEFAULT : modeToStr ) + suffix;
 
         index_++;
         joinOnce_ = false;

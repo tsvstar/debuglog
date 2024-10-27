@@ -31,6 +31,7 @@ namespace tsv::debuglog
     namespace resolve::settings
     {
         // Backtrace tunings
+        extern bool btEnable;         // if false - resolveAddr2Name() returns "??" and getStackTrace() returns "Backtrace feature is unavailable"
         extern bool btIncludeLine;    // if true, include to stacktrace "at file:line"
         extern bool btIncludeAddr;    // if true, include to stacktrace addr
         extern bool btShortList;      // if true, remember already printed stacktraces and just say it's number on repeat

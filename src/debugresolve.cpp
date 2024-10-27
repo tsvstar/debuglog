@@ -79,6 +79,7 @@ namespace resolve::settings
            };
 
     // Backtrace tunings
+    bool btEnable = true;          // if false - resolveAddr2Name() returns "??" and getStackTrace() returns "Backtrace feature is unavailable"
     bool btIncludeLine = true;     // if true, include to stacktrace "at file:line"
     bool btIncludeAddr = true;     // if true, include to stacktrace addr
     bool btShortList = true;       // if true, remember already printed stacktraces and just say it's number on repeat
@@ -430,16 +431,21 @@ std::string collapseNames( const std::vector<std::string>& func_names )
 /***************** END OF local aux functions *******************************/
 
 
-std::string resolveAddr2Name(const void* addr, bool addLineNum /*=false*/, bool includeHexAddr /*= false */ )
+std::string resolveAddr2Name(const void* addr, bool addLineNum /*=false*/, bool includeHexAddr /*= false */)
 {
+    if (!BACKTRACE_AVAILABLE || !resolve::settings::btEnable)
+    {
+        if (!includeHexAddr)
+            return "?\?";
+        return ::tsv::util::tostr::hex_addr(addr) + " ?\?";
+    }
+
 #if BACKTRACE_USE_ADDR2LINE
     std::lock_guard<std::mutex> lock(debugResolverMutex);
     auto symbolEntry = symbol_resolve::resolveAddr(addr);
     if ( !includeHexAddr )
         return symbolEntry.getSymbol( addLineNum );
     return ::tsv::util::tostr::hex_addr( addr ) + " " +symbolEntry.getSymbol( addLineNum );
-#else
-    return ::tsv::util::tostr::hex_addr( addr );
 #endif
 }
 
@@ -455,10 +461,10 @@ std::vector<std::string> getBackTrace( int depth /*=-1*/, int skip /*=0*/)
 {
     std::vector<std::string> return_value;
 
-#if !BACKTRACE_AVAILABLE
-    return_value.push_back( "Backtrace feature is not available" );
-#else
+    if (!BACKTRACE_AVAILABLE || !resolve::settings::btEnable)
+        return_value.push_back( "Backtrace feature is not available" );
 
+#if BACKTRACE_AVAILABLE
     static int localSkip = 0;  // offset to skip this function (0 is unitialized)
 
     // Prepare values

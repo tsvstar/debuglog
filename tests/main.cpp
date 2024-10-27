@@ -40,7 +40,7 @@ bool test( bool& isOkTotal, const char* prefix, std::string val, const char* exp
     bool isOk = checkEquality ? (val == expected)  : (val != expected);
     isOkTotal = isOkTotal && isOk;
     if ( !isOk )
-        std::cout << "TEST FAIL! Should be " << expected << "\n";
+        std::cout << "TEST FAIL! Should be \n" << expected << "|\n";
     return isOk;
 }
 

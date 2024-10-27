@@ -84,6 +84,16 @@ ToStringRV __toString(const bool value, int /*mode*/)
     return { value ? "true" : "false", true };
 }
 
+std::string __toStringULongHex(unsigned long value)
+{
+    return TOSTR_FMT("{:#x}", value);
+}
+
+std::string __toStringLongHex(long value)
+{
+    return TOSTR_FMT("{:#x}", value);
+}
+
 } // namespace impl
 
 

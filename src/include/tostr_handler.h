@@ -23,6 +23,7 @@
 #include <reflect>
 #undef NTEST
 #endif
+#define PREVENT_MAGIC_ENUM 1
 
 #elif !defined(PREVENT_MAGIC_ENUM) && __has_include(<magic_enum.hpp>)
    // second choice - magic_enum as C++17 compatible
@@ -64,6 +65,7 @@ namespace tsv::debuglog::test_objlog
 // If the class used, that means that corresponding header is included
 namespace std
 {
+template<typename T> class function;
 template<class T> class optional;
 template<class T, class Deleter> class unique_ptr;
 template<class T> class shared_ptr;
@@ -89,10 +91,11 @@ std::string getTypeName()
 
 /************************* KNOWN OBJECTS NAMES  *******************************/
 // Feature to tag meaning of known objects to make log output more human-friendly
+//TODO: const SentryLogger::Kind kind /*=Kind::KnownPtr*/ -- just for logging purpose only. kind should be forward declared Kind
 namespace known_pointers
 {
     //function to print register/deregister event
-    extern void (*known_ptr_logger_s)( const std::string& log_str );
+    extern void (*known_ptr_logger_s)(/* const unsigned kind,*/ const std::string& log_str );
 
     // return pointer's name if it is known
     std::string getName( const void* ptr );
@@ -107,7 +110,7 @@ namespace known_pointers
         return isGenericPointerRegistered( reinterpret_cast<const void*>( ptr ), getTypeName<T>() );
     }
 
-    // Register known pointer "ptr" with type "typeName" as name "ptrName"(empty ptrName means "remove it" ).
+    // Register known pointer "ptr" (nullptr means don't) with type "typeName" as name "ptrName"(empty ptrName means "remove it" ).
     // Return previous value
     std::string registerPointerName( const void* ptr, const std::string& ptrName,
                                      const std::string& typeName, bool log = true );
@@ -151,7 +154,8 @@ namespace known_pointers
 enum ToStrEnum : int
 {
     ENUM_TOSTR_DEFAULT,  // as string: value
-    ENUM_TOSTR_REPR,     // as representation: "value"
+    ENUM_TOSTR_REPR,     // as representation: "value"; integrals are printed as decimals
+    ENUM_TOSTR_REPR_HEX, // as representation: "value"; integrals are printed as 0xHEX
     ENUM_TOSTR_EXTENDED  // extended info
 };
 
@@ -165,6 +169,9 @@ struct ToStringRV
     bool valid_;
 };
 
+std::string __toStringULongHex(unsigned long);
+std::string __toStringLongHex(long);
+
 // Default handler
 template<typename T>
 typename std::enable_if< !std::is_arithmetic<T>::value && !std::is_enum<T>::value, ToStringRV >::type
@@ -177,28 +184,33 @@ __toString(const T& /*value*/, int /*mode*/)
 // Integral + floating_point handler
 template<typename T>
 typename std::enable_if< std::is_arithmetic<T>::value, ToStringRV >::type
-__toString(const T& value, int /*mode*/)
+__toString(const T& value, int mode)
 {
-    return { std::to_string( value ), true };
+    return { ((std::is_integral<T>::value && mode== ENUM_TOSTR_REPR_HEX)
+              ? ( std::is_signed<T>::value ? __toStringLongHex(static_cast<long>(value))
+                                           : __toStringULongHex(static_cast<unsigned long>(value)))
+              : std::to_string(value))
+             , true };
 }
 
 template<typename T>
 typename std::enable_if< std::is_enum<T>::value, ToStringRV >::type
-__toString(const T& value, int mode)
+__toString(const T& value, int /*mode*/)
 {
     std::string typeName = ::tsv::debuglog::demangle(typeid(T).name()) + "::";
+    auto numValue = static_cast<std::underlying_type_t<T>>(value);
 #if !defined(PREVENT_REFLECT_ENUM)
    typeName += ::reflect::enum_name(value);
    if (tsv::util::tostr::settings::showEnumInteger)
-       return  { typeName + "(" + std::to_string(value) + ")", true };
+       return  { typeName + "(" + std::to_string(numValue) + ")", true };
    return  { typeName, true };
 #elif !defined(PREVENT_MAGIC_ENUM)
    typeName += ::magic_enum::enum_name(value);
    if (tsv::util::tostr::settings::showEnumInteger)
-       return  { typeName + "(" + std::to_string(value) + ")", true };
+       return  { typeName + "(" + std::to_string(numValue) + ")", true };
    return  { typeName, true };
 #else
-    return { typeName + std::to_string(value), true };
+    return { typeName + std::to_string(numValue), true };
 #endif
 }
 
@@ -206,6 +218,15 @@ __toString(const T& value, int mode)
 ToStringRV __toString(const std::string& value, int mode);
 ToStringRV __toString(const std::string_view& value, int mode);
 ToStringRV __toString(const bool value, int mode);
+
+
+template<typename... Types> ToStringRV __toString(const std::variant<Types...>& value, int mode);
+template<typename T> ToStringRV __toString(const std::shared_ptr<T>& value, int mode);
+template<typename T, class Deleter> ToStringRV __toString(const std::unique_ptr<T, Deleter>& value, int mode);
+template<typename T> ToStringRV __toString(const std::shared_ptr<T>& value, int mode);
+template<typename T> ToStringRV __toString(const std::weak_ptr<T>& value, int mode);
+template<typename Ret, typename... Args> ToStringRV __toString(const std::function<Ret(Args...)>& f, [[maybe_unused]]int mode = ENUM_TOSTR_DEFAULT);
+
 
 template<typename T>
 ToStringRV __toString(const std::optional<T>& value, int mode)
@@ -215,37 +236,17 @@ ToStringRV __toString(const std::optional<T>& value, int mode)
    return __toString(*value, mode);
 }
 
-/**
-       ... Your own classes special handlers  ...
-
-To correct processing (and auto-dereferencing) your own classes forward declaration of handler have to be placed here
-  and forward declaration of that class have to be placed in beginning of this file.
-NOTE: Do not use specific to your class version of toStr(), otherwise pointers to it will not be auto-dereferenced
-
-Example:
-
-in beginning of this file:
-    class YourClass;
-here:
-    ToStringRV toStr( const YourClass& value, int mode );
-
-in .c:
-   #include "tostr_handler.h"
-   namespace tsv::util::tostr::impl {
-        ToStringRV __toString(const ::YourClass& value, int mode)
-        {
-            // Return: { VALUE_STD::STRING, true }
-            return { "value", true };
-        }
-   } } } }
-**/
-
-    // That is sample class from test_objlog
-    ToStringRV __toString( const ::tsv::debuglog::test_objlog::TrackedItem& value, int mode );
-
 }  // namespace impl
+}  // namespace tsv::util::tostr
 
+// User header where forwardly declared all user-specific handlers
+// Take a look tests/ directory to see example of that file and handler definition
+#if __has_include("debuglog_tostr_my_handler.h")
+#include "debuglog_tostr_my_handler.h"
+#endif
 
+namespace tsv::util::tostr
+{
 
 /**********************************************
     Main toStr() interface.
@@ -302,9 +303,6 @@ std::string toStr(Ret (*val)(Args...), [[maybe_unused]]int mode = ENUM_TOSTR_DEF
     return rv;
 }
 
-//TODO: special case for std::function<> and lambda(?) -- or detect it in const T& ...
-
-
 // Main implementation for pointers
 template<typename T>
 std::string toStr(const T* val, int mode = ENUM_TOSTR_DEFAULT)
@@ -354,12 +352,11 @@ std::string toStr(const char* v, int mode = ENUM_TOSTR_DEFAULT);
 namespace impl
 {
 
-//TODO: why it is not catched?
 template<typename... Types>
 ToStringRV __toString(const std::variant<Types...>& value, int mode)
 {
     return std::visit([mode](const auto& val) -> ToStringRV {
-            return tsv::util::tostr::toStr(val, mode);
+            return { tsv::util::tostr::toStr(val, mode), true};
          }, value);
 }
 
@@ -370,7 +367,6 @@ ToStringRV __toString(const std::unique_ptr<T, Deleter>& value, int mode)
     return {"unique_ptr:" + rv, true};
 }
 
-//TODO: why it is not catched?
 template<typename T>
 ToStringRV __toString(const std::shared_ptr<T>& value, int mode)
 {
@@ -378,12 +374,35 @@ ToStringRV __toString(const std::shared_ptr<T>& value, int mode)
     return {"shared_ptr(" + std::to_string(value.use_count()) + "):" + rv, true};
 }
 
-//TODO: why it is not catched?
 template<typename T>
 ToStringRV __toString(const std::weak_ptr<T>& value, int mode)
 {
-    std::string rv = tsv::util::tostr::toStr( value.get(), mode );
+    std::string rv = tsv::util::tostr::toStr( value.lock().get(), mode );
     return {"weak_ptr(" + std::to_string(value.use_count()) + "):" + rv, true};
+}
+
+template<typename Ret, typename... Args>
+ToStringRV __toString(const std::function<Ret(Args...)>& f, int /*mode*/)
+{
+    typedef Ret(*FunctionPtr)(Args...);
+
+    if (!f) 
+        return { "nullptr ("+ getTypeName<FunctionPtr>() +")", true };
+
+    if (auto fptr = f.template target<FunctionPtr>())
+    {
+        std::string rv = hex_addr(reinterpret_cast<const void*>(fptr));
+        if (settings::showFnPtrContent)
+        {
+            rv += " (" + getTypeName<Ret(*)(Args...)>() + "/"
+                 + tsv::debuglog::resolveAddr2Name(reinterpret_cast<const void*>(fptr),false,false)
+                 + ")";
+        }
+
+        return { rv, true };
+    }
+
+    return  { std::string("(callable type: ") + ::tsv::debuglog::demangle(f.target_type().name())  + ")", true };
 }
 
 

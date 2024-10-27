@@ -11,7 +11,7 @@ Library consists of four modules:
 Tested on Linux GCC and CLANG.
 C++17 (GCC 7.1 or CLANG 4.0) is required. C++20 is recommended (to use designated initializer)
 Depends on fmt library (https://fmt.dev/).
-Includes magic_enum library (https://github.com/Neargye/magic_enum).
+Optionally use reflect (https://github.com/qlibs/reflect) or magic_enum library (https://github.com/Neargye/magic_enum).
 //C++17 -- for namespace N1::N2::, string_view
 
 

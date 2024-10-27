@@ -322,7 +322,7 @@ SentryLogger::SentryLogger(RootTag)
 {
     contextName_ = "core";
     prettyFuncName_ = nullptr;
-    flags_ = SentryLogger::Flags::SuppressLeave;
+    flags_ = SentryLogger::Flags::SuppressBorders;
     logLevel_ = Settings::defaultSentryLoggerLevel_s;
     kind_ = SentryLogger::Kind::Default;
     prevSentry_ = nullptr;
@@ -338,21 +338,31 @@ SentryLogger::SentryLogger(InitArgs args,
     , contextName_(name)
     , prettyFuncName_(prettyName)
 {
-    if (checkFlags(Flags::Timer))
-        startTime_ = getCurTimestampAsDouble();
+    if (!prettyFuncName_ && checkFlags(Flags::AppendContextName))
+         contextName_ = (*getLastSentryPtr())->getContextName() + "--" + contextName_;
 
-    currentLevel_s++;
-    prevSentry_ = *getLastSentryPtr();
-    *getLastSentryPtr() = this;
+    // Do not place disabled to the sentries stack.
+    // That is the way to make it invisible
+    if (args.enabled)
+    {
+        currentLevel_s++;
+        prevSentry_ = *getLastSentryPtr();
+        *getLastSentryPtr() = this;
+    }
 
     if (logLevel_ == Level::Default)
         logLevel_ = Settings::defaultSentryLoggerLevel_s;
     else if (logLevel_ == Level::This || logLevel_ == Level::Parent)
         logLevel_ = prevSentry_->getLogLevel();
+
     if (relatedObj_ && logLevel_ != Level::Off)
         logobjects::registerObject(kind_, relatedObj_);
     else
         relatedObj_ = nullptr;
+
+    // at the end to minimize impact
+    if (checkFlags(Flags::Timer))
+        startTime_ = getCurTimestampAsDouble();
 }
 
 SentryLogger::~SentryLogger()
@@ -444,6 +454,8 @@ const std::string& SentryLogger::getContextName()
     {
         if (!prettyFuncName_[0])
             contextName_ = findFuncName(prettyFuncName_, contextName_);
+        if (checkFlags(Flags::AppendContextName))
+            contextName_ = (*getLastSentryPtr())->getContextName() + "--" + contextName_;
         prettyFuncName_ = nullptr;
     }
     return contextName_;

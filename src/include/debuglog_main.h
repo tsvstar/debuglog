@@ -24,7 +24,7 @@
 // If 0 - no operator<< interface available, but performance of operations is better
 // If 1 - allowed operator<< for SAY/SENTRY but that impact on speed even if such interface is not used
 #ifndef DEBUGLOG_ALLOW_STREAM_INTERFACE
-#define DEBUGLOG_ALLOW_STREAM_INTERFACE 0
+#define DEBUGLOG_ALLOW_STREAM_INTERFACE 1
 #endif
 
 #if DEBUGLOG_ALLOW_STREAM_INTERFACE
@@ -44,7 +44,8 @@
 #define _SENTRY_CONTEXT_ARGS(context,arg,...)  SENTRYLOGGER_CREATE_1( context, arg, TOSTR_ARGS(__VAR_ARGS__) )
 #define SENTRY_CONTEXT(context, ...)           _DEBUGLOG_GET_MACRO(__VA_ARGS__, _SENTRY_CONTEXT_ARGS, _SENTRY_CONTEXT_NOARGS)(context, __VA_ARGS__)
 
-#define SENTRY_SILENT()      SENTRYLOGGER_CREATE_1( ::tsv::debuglog::extractFuncName(__PRETTY_FUNCTION__), {SentryLogger::Flags::SuppressBorders} )
+#define SENTRY_SILENT()      SENTRYLOGGER_CREATE_1( ::tsv::debuglog::extractFuncName(__PRETTY_FUNCTION__), {SentryLogger::Level::Default, SentryLogger::Kind::Default, SentryLogger::Flags::SuppressBorders} )
+
 // SENTRY_FUNC_W_ARGS({/*.kind=SentryLogger::Kind::Default, .enabled=true*/}, a, b, c}
 
 #define SENTRY_FUNC_COND(allowFlag, arg, ...) SENTRYLOGGER_CREATE_ ## allowFlag( ::tsv::debuglog::extractFuncName(__PRETTY_FUNCTION__), arg, TOSTR_ARGS(__VAR_ARGS__) )
@@ -56,10 +57,11 @@
 #define SAY_EXPR(...)   SENTRYLOGGER_PRINT( TOSTR_EXPR(__VA_ARGS__) )
 #define SAY_JOIN(...)   SENTRYLOGGER_PRINT( TOSTR_JOIN(__VA_ARGS__) )
 #define SAY_FMT(...)    SENTRYLOGGER_PRINT( TOSTR_FMT(__VA_ARGS__) )
-#define SAY_AND_RETURN(arg) EXECUTE_IF_DEBUGLOG2( \
-            {auto rv = arg; if (sentryLogger.isAllowed(SentryLogger::Stage::Leave)) sentryLogger.setReturnValueStr( TOSTR_JOIN(rv) ); return rv; }, \
+#define SAY_AND_RETURN(arg,...) EXECUTE_IF_DEBUGLOG2( \
+            {decltype(auto) rv = arg; if (sentryLogger.isAllowed(SentryLogger::Stage::Leave)) sentryLogger.setReturnValueStr( ::tsv::util::tostr::toStr(rv, ::tsv::util::tostr::ENUM_TOSTR_REPR) + TOSTR_JOIN(__VAR_ARGS__) ); return rv; }, \
             return arg)  
 
+//TODO: (static_cast<void>(false), false)  -- left side of operator make this work as standalone statement, while comma operator and right side makes this valid expression
 #define SENTRYLOGGER_DO_NOTHING(...) static_cast<void>(false)
 #define SENTRYLOGGER_DO(action)  EXECUTE_IF_DEBUGLOG2( sentryLogger.action, SENTRYLOGGER_DO_NOTHING )
 #define EXECUTE_IF_DEBUGLOG(action)  EXECUTE_IF_DEBUGLOG2( action, SENTRYLOGGER_DO_NOTHING() )
@@ -71,7 +73,7 @@
             const auto* funcPtr = WHICH_VIRTFUNC_WILL_BE_CALLED( BaseClass, objPtr, method ); \
             std::string suf = TOSTR_ARGS(__VA_ARGS__); \
             std::string funcName = ::tsv::debuglog::resolveAddr2Name( funcPtr, ::tsv::debuglog::resolve::settings::btIncludeLine, true); \
-            sentryLogger.print( "Call vfunc "+ funcName + (suf.empty()?"":" -- ") + suf ); } , \
+            sentryLogger.print( "Call vfunc "+ funcName + suf ); } , \
             SENTRYLOGGER_DO_NOTHING())
         
 
@@ -159,6 +161,7 @@ class SentryLogger
            SuppressEvents = 1<<3,
            Timer          = 1<<4, // turn on time tracking (ms resolution)
            Force          = 1<<5, // if true, all kinds and all stages if not out of loglevel
+           AppendContextName = 1<<6, // if true, the contextName will be "PreviousContextName--ThisContextName"
            SuppressBorders = SuppressEnter|SuppressLeave
        };
 
@@ -166,6 +169,7 @@ class SentryLogger
        {
           Default,
           Tracked,        // built-in category for objlog module
+          KnownPtr,       // built-in category for register and output that
           Test1,          // that is for unittest purpose
 
           //..your own categories here
@@ -255,7 +259,7 @@ class SentryLogger
         template <typename T>
         SentryLogger::StreamHelper operator<<(const T& val)
         {
-            StreamHelper helper(*this, "", Stage::Event, logLevel_);
+            StreamHelper helper(*this, getContextName(), "", Stage::Event, logLevel_);
             helper << val;
             return helper;
         }

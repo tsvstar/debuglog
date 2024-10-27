@@ -1,5 +1,10 @@
 #include "tostr.h"
-#include "tostr_fmt_include.h"
+#include "tostr_fmt_include.h"	// smart include of format library
+
+// For resolve::settings:btEnable
+#include "debugresolve.h"
+
+#include "test_tostr.h"
 
 #include <iostream>
 #include <functional>
@@ -7,6 +12,7 @@
 #include <optional>
 #include <memory>
 #include <variant>
+
 
 namespace tsv::debuglog::tests
 {
@@ -36,6 +42,13 @@ int add( int a, int b )
     return a + b;
 }
 
+enum class TestEnum : unsigned
+{
+   V1 = 3,
+   V2
+};
+
+
 bool test_tostr()
 {
     // Set predefined set of settings with minimal variativness of output
@@ -44,25 +57,35 @@ bool test_tostr()
     settings::showFnPtrContent = true;
     settings::showPtrContent = true;
     settings::showEnumInteger = true;
+    resolve::settings::btEnable = false;
 
 
-    int x = 10;
+    int x = -10;
+    int y = 15;
+    double f = 0.10;
     TempClass c;
     const char* vv = "str";
     std::string ss( "std_str");
     TempClass* tc_null = nullptr;
+    TestEnum e {TestEnum::V2};
+    KnownClass k1{44, 55};
 
     bool isOk = true;
 
     std::cout << " ==== Test toStr() and TOSTR_* =======\n\n";
 
 
-    test( isOk, "", toStr(x), "10" );
+    test( isOk, "", toStr(x), "-10" );
     test( isOk, "", toStr(15), "15" );
     test( isOk, "", toStr("literal"), "literal");
     test( isOk, "", toStr(vv), "str");
     test( isOk, "", toStr(ss), "std_str");
     test( isOk, "", toStr(ss, ENUM_TOSTR_REPR), "\"std_str\"");
+#if !defined(PREVENT_MAGIC_ENUM) || !defined(PREVENT_REFLECT_ENUM)
+    test( isOk, "", toStr(e), "tsv::debuglog::tests::TestEnum::V2(4)");
+#else
+    test( isOk, "", toStr(e), "tsv::debuglog::tests::TestEnum::4");
+#endif
 
     std::cout << "\nPointers:\n";
     std::string vv_addr( hex_addr(vv) );
@@ -72,25 +95,34 @@ bool test_tostr()
     test( isOk, "", toStr(nullptr), "nullptr");
     test( isOk, "", toStr(tc_null), "nullptr (tsv::debuglog::tests::TempClass)" );   // Nullptr with type - shows type
     test( isOk, "", toStr(&ss), "0xADDR (std_str)", true );   // Pointer to known type shows its content
-    test( isOk, "", toStr(&x), "0xADDR (10)", true );         // (for POD types too)
+    test( isOk, "", toStr(&x), "0xADDR (-10)", true );         // (for POD types too)
     test( isOk, "", toStr(&c), "0xADDR (tsv::debuglog::tests::TempClass)", true );   // for unknown type - say its typename
+#if !defined(PREVENT_MAGIC_ENUM) || !defined(PREVENT_REFLECT_ENUM)
+    test( isOk, "", toStr(&e), "0xADDR (tsv::debuglog::tests::TestEnum::V2(4))", true);
+#else
+    test( isOk, "", toStr(&e), "0xADDR (tsv::debuglog::tests::TestEnum::4)", true);
+#endif
+
+// TODO known_pointers
 
     std::cout << "\nObjects of unknown type:\n";
     // Unknown object - say type. Do mark is that value or pointer
     test( isOk, "", toStr(c), "*0xADDR (tsv::debuglog::tests::TempClass)", true );
     test( isOk, "", toStr(&c), "0xADDR (tsv::debuglog::tests::TempClass)", true  );
+    // Example of user-defined handler of the class. Depending on details representation is differ.
+    test( isOk, "", toStr(k1), "BaseAppearance#44", true );
+    test( isOk, "", toStr(k1,ENUM_TOSTR_EXTENDED), "ExtAppearance#44/55", true );
+
 
     std::cout << "\n\nComplex STL:\n";
     std::optional<std::string> emptyOpt;
     std::optional<std::string> valueOpt {"valueOpt"};
     std::variant<int, std::string> intVariant {14};
     std::variant<int, std::string> strVariant {"strVariant"};
-    test( isOk, "", toStr(emptyOpt));
-    test( isOk, "", toStr(valueOpt));
-    //todo: why generic T& handler is used??
-    test( isOk, "", toStr(intVariant));
-    test( isOk, "", toStr(strVariant));
-
+    test( isOk, "", toStr(emptyOpt), "no_value");
+    test( isOk, "", toStr(valueOpt), "valueOpt");
+    test( isOk, "", toStr(intVariant), "14");
+    test( isOk, "", toStr(strVariant), "strVariant");
 
     std::cout << "\n\nSmart pointers:\n";
     std::unique_ptr<std::string> emptyUnique;
@@ -100,43 +132,52 @@ bool test_tostr()
     auto valueShared2 = valueShared;
     std::weak_ptr<std::string> valueWeak{valueShared};
 
-    //todo: why generic T& handler is used??
-    test( isOk, "", toStr(emptyUnique));
-    test( isOk, "", toStr(valueUnique));
-    test( isOk, "", toStr(emptyShared));
-    test( isOk, "", toStr(valueShared));
-    test( isOk, "", toStr(valueWeak));
+    test( isOk, "", toStr(emptyUnique), "unique_ptr:nullptr (std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >)", true);
+    test( isOk, "", toStr(valueUnique), "unique_ptr:0xADDR (valueUnique)", true);
+    test( isOk, "", toStr(emptyShared), "shared_ptr(0):nullptr (std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >)", true);
+    test( isOk, "", toStr(valueShared), "shared_ptr(2):0xADDR (valueShared)", true);
+    test( isOk, "", toStr(valueWeak), "weak_ptr(2):0xADDR (valueShared)", true);
 
-    //TODO - make sure that function pointers tsv::debuglog::resolveAddr2Name doesn't resolve really
     std::cout << "\nFunction pointers:\n";
     auto lambda = [](TempClass* ) -> int { return 0;};
     int (*fpNull)(int, int) = nullptr;
     int (*addPtr)(int, int) = add;
     std::function<int(int,int)> fpNull2;
     std::function<int(int,int)> addPtr2 { add };
+    std::function<int(TempClass*)> lambdaPtr { lambda };
 
     test( isOk, "", toStr(add), "0xADDR (int (*)(int, int)/?\?)", true);
     test( isOk, "", toStr(addPtr), "0xADDR (int (*)(int, int)/?\?)", true);
     test( isOk, "", toStr(fpNull), "nullptr (int (*)(int, int))" );
-    test( isOk, "", toStr(lambda));  //todo - show content. check clang/gcc equality
-    test( isOk, "", toStr(addPtr2)); //todo - show content
-    test( isOk, "", toStr(fpNull2)); //todo - show content
+    test( isOk, "", toStr(lambda), "*0xADDR (tsv::debuglog::tests::test_tostr()::{lambda(tsv::debuglog::tests::TempClass*)#1})", true); 
+    test( isOk, "", toStr(addPtr2), "0xADDR (int (*)(int, int)/?\?)", true);
+    test( isOk, "", toStr(fpNull2), "nullptr (int (*)(int, int))");
+    test( isOk, "", toStr(lambdaPtr), "(callable type: tsv::debuglog::tests::test_tostr()::{lambda(tsv::debuglog::tests::TempClass*)#1})");
 
 
     std::cout << "\n\nMacro:\n";
 
-    test( isOk, "", TOSTR_ARGS( x, "More tests:", vv, add(x,13) ),
- 		"x = 10, More tests: vv = \"str\", add(x,13) = 23" );
+    test( isOk, "", TOSTR_ARGS( x, f, "; More tests:", vv, add(x,17), y ),
+                    "x = -10, f = 0.100000; More tests: vv = \"str\", add(x,17) = 7, y = 15" );
 
-    test( isOk, "", TOSTR_JOIN( x, "15", vv, add(x,13) ), "1015str23" );
+    test( isOk, "", TOSTR_JOIN( x, "; More tests:", vv, add(x,17) ), //
+                    "-10; More tests:str7" );
 
-    int res = 3 + add(x,13);
-    test( isOk, "", TOSTR_EXPR( res, "=", 3, "+", add(x,13) ),
- 			"res{26} = 3 + add(x,13){23} " );
+    int res = 4 + add(x,17);
+    test( isOk, "", TOSTR_EXPR( res, "=", 4, "+", add(x,17) ),
+ 			"res{11} = 4 + add(x,17){7} " );
 
-    test( isOk, "", TOSTR_FMT("{1}{0}", 11, ss), "std_str11");
+    test( isOk, "", TOSTR_FMT("{1}{0}", 11, ss), //
+                    "std_str11");
 
-    //todo: level, hex, joinonce
+    test( isOk, "", TOSTR_ARGS( tsv::util::tostr::Details::NormalHex, x, f, "; More tests:", vv, add(x,17), tsv::util::tostr::Details::Normal, y  ),
+                    "x = -0xa, f = 0.100000; More tests: vv = \"str\", add(x,17) = 0x7, y = 15" );
+
+    test( isOk, "", TOSTR_ARGS( x, f, "; More tests:", tsv::util::tostr::Mode::Join /*until end or next mode*/, vv, add(x,17), tsv::util::tostr::Mode::Args, y ),
+                    "x = -10, f = 0.100000; More tests:str7, y = 15" );
+
+    test( isOk, "", TOSTR_ARGS( x, f, "; More tests:", vv, "--> ", tsv::util::tostr::Mode::JoinOnce, add(x,17), y ),
+                    "x = -10, f = 0.100000; More tests: vv = \"str\"--> 7, y = 15" );
 
 
     std::cout << "\n";
