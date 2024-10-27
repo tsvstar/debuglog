@@ -48,6 +48,12 @@ enum class TestEnum : unsigned
    V2
 };
 
+std::string knownPtrLog = "";
+void MyKnownPtrLogger(const std::string& log_str )
+{
+   knownPtrLog += (knownPtrLog.empty() ? "" : "|") + log_str;
+}
+
 
 bool test_tostr()
 {
@@ -58,12 +64,13 @@ bool test_tostr()
     settings::showPtrContent = true;
     settings::showEnumInteger = true;
     resolve::settings::btEnable = false;
+    known_pointers::known_ptr_logger_s = MyKnownPtrLogger;
 
 
     int x = -10;
     int y = 15;
     double f = 0.10;
-    TempClass c;
+    TempClass c, c1;
     const char* vv = "str";
     std::string ss( "std_str");
     TempClass* tc_null = nullptr;
@@ -103,9 +110,8 @@ bool test_tostr()
     test( isOk, "", toStr(&e), "0xADDR (tsv::debuglog::tests::TestEnum::4)", true);
 #endif
 
-// TODO known_pointers
 
-    std::cout << "\nObjects of unknown type:\n";
+    std::cout << "\nObjects of unknown and known types:\n";
     // Unknown object - say type. Do mark is that value or pointer
     test( isOk, "", toStr(c), "*0xADDR (tsv::debuglog::tests::TempClass)", true );
     test( isOk, "", toStr(&c), "0xADDR (tsv::debuglog::tests::TempClass)", true  );
@@ -113,6 +119,49 @@ bool test_tostr()
     test( isOk, "", toStr(k1), "BaseAppearance#44", true );
     test( isOk, "", toStr(k1,ENUM_TOSTR_EXTENDED), "ExtAppearance#44/55", true );
 
+    std::cout << "\nKnown pointers:\n";
+
+    test( isOk, "", std::to_string(known_pointers::isPointerRegistered(&c)), "0" );  // "&c" is not registered yet
+    test( isOk, "", known_pointers::getName(&c), "");  // for not registered return ""
+
+    known_pointers::registerPointerName(&c1, "var_c");
+    known_pointers::registerPointerName(&c, "var_C_initial");
+    test( isOk, "", std::to_string(known_pointers::isPointerRegistered(&c)), "1" );  // "&c" is already registered
+    test( isOk, "", known_pointers::getName(&c), "var_C_initial" );
+
+    // Reuse existed name - to differentiate them a new instance get index suffix
+    known_pointers::registerPointerName(&c, "var_c");
+    test( isOk, "", std::to_string(known_pointers::isPointerRegistered(&c)), "1" );  // "&c" is still registered
+    test( isOk, "", known_pointers::getName(&c), "var_c$1");
+    // and that is how known pointers are represented in the log
+    test( isOk, "", toStr(&c), "var_c$1[0xADDR] (tsv::debuglog::tests::TempClass)", true);
+
+    // If nullptr give, then do not register pointer. That is the way to conditionally track it.
+    bool track = false;
+    known_pointers::registerPointerName( (track ? &f : nullptr), "var_F");
+    test( isOk, "", std::to_string(known_pointers::isPointerRegistered(&f)), "0" );
+	
+    // registerPointerNameWType() can be used for case from the name of var or given name the typename is unclear but it is important
+    known_pointers::registerPointerNameWType(&k1, "var_K");
+    test( isOk, "", toStr(&k1), "var_K (tsv::debuglog::tests::KnownClass)[0xADDR] (BaseAppearance#44)", true );
+
+    // Mismatched type of pointer doesn't remove it
+    known_pointers::deletePointerName( reinterpret_cast<void*>(&c));
+    test( isOk, "", std::to_string(known_pointers::isPointerRegistered(&c)), "1" );  // "&c" is still registered
+
+    // Delete pointer (after its free). Normally it doesn't delete the pointer from known list, but mark it as removed.
+    // That could help to catch use-after-free
+    known_pointers::deletePointerName(&c);
+    test( isOk, "", std::to_string(known_pointers::isPointerRegistered(&c)), "1" );
+    test( isOk, "", known_pointers::getName(&c), "var_c$1(removed)" );
+
+    // Check what is in the output
+    test( isOk, "", knownPtrLog, "Register knownPtr 0xADDR = var_c // tsv::debuglog::tests::TempClass|"
+                                 "Register knownPtr 0xADDR = var_C_initial // tsv::debuglog::tests::TempClass|"
+                                 "Replace knownPtr 0xADDR = var_c$1 // tsv::debuglog::tests::TempClass|"
+                                 "Register knownPtr 0xADDR = var_K (tsv::debuglog::tests::KnownClass) // tsv::debuglog::tests::KnownClass|"
+                                 "Delete knownPtr 0xADDR:  var_c$1 // tsv::debuglog::tests::TempClass",
+                    true );
 
     std::cout << "\n\nComplex STL:\n";
     std::optional<std::string> emptyOpt;

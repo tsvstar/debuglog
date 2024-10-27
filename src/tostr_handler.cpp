@@ -130,6 +130,12 @@ auto& getKnownPtrMap()
     return knownPtrMap;
 }
 
+auto& getKnownPtrNames()
+{
+    static std::unordered_map< std::string, int > knownPtrNamesMap(100);
+    return knownPtrNamesMap;
+}
+
 // Return pointer's name if it is known, empty otherwise
 std::string getName( const void* ptr )
 {
@@ -155,7 +161,7 @@ bool isGenericPointerRegistered( const void* ptr, const std::string& typeName )
 
 // PURPOSE:      Register known pointer "ptr" with type "typeName" as name "ptrName" (if empty - remove it )
 // RETURN VALUE: Previous known name of the "ptr'
-std::string registerPointerName( const void* ptr, const std::string& ptrName,
+std::string registerPointerName( const void* ptr, std::string ptrName,
                                  const std::string& typeName, bool log /*= true*/ )
 {
     // Ignore nullptr
@@ -163,7 +169,17 @@ std::string registerPointerName( const void* ptr, const std::string& ptrName,
         return "nullptr";
     // Empty ptrName means delete
     if ( ptrName.empty() )
-        return deletePointerName( ptr, typeName );
+        return deletePointerName( ptr, typeName, true /*use-after-free-track*/ );
+
+    auto& ptrNamesMap = getKnownPtrNames();
+    auto it = ptrNamesMap.find( ptrName );
+    if ( it == ptrNamesMap.end() )
+        ptrNamesMap[ptrName] = 0;
+    else
+    {
+        it->second++;
+        ptrName += "$" + std::to_string(it->second);
+    }
 
     auto& knownPtrMap_ = getKnownPtrMap();
     std::string prevPtrName = knownPtrMap_[ ptr ].ptrName_;
@@ -179,7 +195,7 @@ std::string registerPointerName( const void* ptr, const std::string& ptrName,
 
 // PURPOSE:      Delete known pointer "ptr" with typename "typeName"(ignore typeName if empty )
 // RETURN VALUE: Known name of the "ptr" or empty if not found
-std::string deletePointerName( const void* ptr, const std::string& typeName, bool log /*= true*/ )
+std::string deletePointerName( const void* ptr, const std::string& typeName, bool useAfterFreeTrack, bool log /*= true*/ )
 {
     auto& knownPtrMap_ = getKnownPtrMap();
     auto it = knownPtrMap_.find( ptr );
@@ -193,7 +209,13 @@ std::string deletePointerName( const void* ptr, const std::string& typeName, boo
         std::string logstr = "Delete knownPtr " + hex_addr( ptr ) + ":  " + prevPtrName + " // " + it->second.typeName_;
         known_ptr_logger_s( logstr );
     }
-    knownPtrMap_.erase( it );
+
+    if (useAfterFreeTrack)
+        // Do not really delete - just mark it for use-after-free catch
+        it->second.ptrName_ += "(removed)";
+    else
+        knownPtrMap_.erase(it);
+
     return prevPtrName;
 }
 

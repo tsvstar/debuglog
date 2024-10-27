@@ -112,7 +112,7 @@ namespace known_pointers
 
     // Register known pointer "ptr" (nullptr means don't) with type "typeName" as name "ptrName"(empty ptrName means "remove it" ).
     // Return previous value
-    std::string registerPointerName( const void* ptr, const std::string& ptrName,
+    std::string registerPointerName( const void* ptr, std::string ptrName,
                                      const std::string& typeName, bool log = true );
 
     // Register known pointer "ptr" as name "ptrName" (empty ptrName means "remove it"" )
@@ -132,13 +132,13 @@ namespace known_pointers
     }
 
     // Delete known pointer "ptr" with typename "typeName"(ignore typeName if empty)
-    std::string deletePointerName( const void* ptr, const std::string& typeName, bool log = true );
+    std::string deletePointerName( const void* ptr, const std::string& typeName, bool useAfterFreeTrack, bool log = true );
 
     // delete known pointer "ptr"
     template<typename T>
-    std::string deletePointerName( const T* ptr, bool log = true )
+    std::string deletePointerName( const T* ptr, bool useAfterFreeTrack = true, bool log = true )
     {
-        return deletePointerName( reinterpret_cast<const void*>( ptr ), getTypeName<T>(), log );
+        return deletePointerName( reinterpret_cast<const void*>( ptr ), getTypeName<T>(), useAfterFreeTrack, log );
     }
 
 }
