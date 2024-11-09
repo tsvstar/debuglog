@@ -156,11 +156,6 @@ private:
 
             modeToStr = ( detailed_==Details::Normal  ? ENUM_TOSTR_REPR : 
                           (detailed_==Details::NormalHex ? ENUM_TOSTR_REPR_HEX : ENUM_TOSTR_EXTENDED) );
-            //betweenToken = " = ";         //use default: " = " between name and value
-            //suffix = "";                  //use default "" after value
-//                betweenToken = "{";         //between name and value
-//                suffix = "} ";              //after value
-
         }
         else if ( mode_ == Mode::Expr && !joinOnce_)
         {
@@ -202,7 +197,6 @@ private:
         // 2. Do output
         if ( !excludeName )
             acc_str_ += std::string(names_[index_]) + betweenToken;
-   //     acc_str_ += "<" + std::to_string(index_)+":"+std::to_string(static_cast<int>(mode_))+":"+std::to_string(joinOnce_)+">"+toStr( head, asisFlag ? ENUM_TOSTR_DEFAULT : modeToStr ) + suffix;
         acc_str_ +=  toStr( head, asisFlag ? ENUM_TOSTR_DEFAULT : modeToStr ) + suffix;
 
         index_++;
@@ -217,8 +211,9 @@ private:
 
 /****************  Auxilarly macros ******************/
 
-#define MACRO_TOSTR__CHOOSE_NTH(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25,a26,a27,a28,a29,a30,a31, num, ...) num
-#define MACRO_TOSTR__GET_ARG_NUM(...) MACRO_TOSTR__CHOOSE_NTH( __VA_ARGS__, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 09, 08, 07, 06, 05, 04, 03, 02, 01, 00 )
+#define MACRO_TOSTR__CHOOSE_NTH(a50,a49,a48,a47,a46,a45,a44,a43,a42,a41,a40,a39,a38,a37,a36,a35,a34,a33,a32,a31,a30,a29,a28,a27,a26,a25,a24,a23,a22,a21,a20,a19,a18,a17,a16,a15,a14,a13,a12,a11,a10,a09,a08,a07,a06,a05,a04,a03,a02,a01, num, ...) num
+//                                                                        (a50,a49,a48,a47,a46,a45,a44,a43,a42,a41,a40,a39,a38,a37,a36,a35,a34,a33,a32,a31,a30,a29,a28,a27,a26,a25,a24,a23,a22,a21,a20,a19,a18,a17,a16,a15,a14,a13,a12,a11,a10,a09,a08,a07,a06,a05,a04,a03,a02,a01, num
+#define MACRO_TOSTR__GET_ARG_NUM(...) MACRO_TOSTR__CHOOSE_NTH( __VA_ARGS__,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N,  N, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 09, 08, 07, 06, 05, 04, 03, 02, 01, 00 )
 #define MACRO_TOSTR__EXPAND_EACH_00()
 #define MACRO_TOSTR__EXPAND_EACH_01(a01) #a01
 #define MACRO_TOSTR__EXPAND_EACH_02(a01,a02) #a01, #a02
@@ -245,11 +240,8 @@ private:
 #define MACRO_TOSTR__EXPAND_EACH_23(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23
 #define MACRO_TOSTR__EXPAND_EACH_24(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24
 #define MACRO_TOSTR__EXPAND_EACH_25(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24, #a25
-#define MACRO_TOSTR__EXPAND_EACH_26(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25,a26) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24, #a25, #a26
-#define MACRO_TOSTR__EXPAND_EACH_27(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25,a26,a27) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24, #a25, #a26, #a27
-#define MACRO_TOSTR__EXPAND_EACH_28(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25,a26,a27,a28) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24, #a25, #a26, #a27, #a28
-#define MACRO_TOSTR__EXPAND_EACH_29(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25,a26,a27,a28,a29) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24, #a25, #a26, #a27, #a28, #a29
-#define MACRO_TOSTR__EXPAND_EACH_30(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25,a26,a27,a28,a29,a30) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24, #a25, #a26, #a27, #a28, #a29, #a30
-#define MACRO_TOSTR__TOKEN_PASTE(x,y) x ## y
-#define MACRO_TOSTR__TOKEN_PASTE2(x,y) MACRO_TOSTR__TOKEN_PASTE(x,y)
-#define MACRO_TOSTR__EXPAND_EACH_VAL(...) MACRO_TOSTR__TOKEN_PASTE2(MACRO_TOSTR__EXPAND_EACH_, MACRO_TOSTR__GET_ARG_NUM(__VA_ARGS__))( __VA_ARGS__ )
+#define MACRO_TOSTR__EXPAND_EACH_N(a01,a02,a03,a04,a05,a06,a07,a08,a09,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24,a25,...) #a01, #a02, #a03, #a04, #a05, #a06, #a07, #a08, #a09, #a10, #a11, #a12, #a13, #a14, #a15, #a16, #a17, #a18, #a19, #a20, #a21, #a22, #a23, #a24, #a25, MACRO_TOSTR__EXPAND_EACH_VAL_AGAIN(__VA_ARGS__)
+#define MACRO_TOSTR__TOKEN_PASTE_IMPL(x,y) x ## y
+#define MACRO_TOSTR__TOKEN_PASTE(x,y) MACRO_TOSTR__TOKEN_PASTE_IMPL(x,y)
+#define MACRO_TOSTR__EXPAND_EACH_VAL(...) MACRO_TOSTR__TOKEN_PASTE(MACRO_TOSTR__EXPAND_EACH_, MACRO_TOSTR__GET_ARG_NUM(__VA_ARGS__))( __VA_ARGS__ )
+#define MACRO_TOSTR__EXPAND_EACH_VAL_AGAIN(...) MACRO_TOSTR__TOKEN_PASTE(MACRO_TOSTR__EXPAND_EACH_, MACRO_TOSTR__GET_ARG_NUM(__VA_ARGS__))( __VA_ARGS__ )

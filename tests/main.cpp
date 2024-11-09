@@ -8,6 +8,8 @@
 namespace tsv::debuglog::tests
 {
 
+bool isOkTotal = true;
+const char* testPrefix = "";
 
 std::string removeAddr( std::string input )
 {
@@ -15,9 +17,9 @@ std::string removeAddr( std::string input )
     return std::regex_replace(input, hex_pattern, "0xADDR");
 }    
 
-bool test( bool& isOkTotal, const char* prefix, const std::string& val,  std::function<bool(std::string_view)> fn)
+bool test(const std::string& val,  std::function<bool(std::string_view)> fn)
 {
-    std::cout << prefix << val << "\n";
+    std::cout << testPrefix << val << "\n";
     bool isOk = fn(val);
     isOkTotal = isOkTotal && isOk;
     if ( !isOk )
@@ -26,11 +28,11 @@ bool test( bool& isOkTotal, const char* prefix, const std::string& val,  std::fu
 
 }
 
-bool test( bool& isOkTotal, const char* prefix, std::string val, const char* expected = nullptr, bool removeAddrFlag = false, bool checkEquality = true )
+bool test(std::string&& val, const char* expected = nullptr, bool removeAddrFlag = false, bool checkEquality = true )
 {
     if (removeAddrFlag)
        val = removeAddr(val);
-    std::cout << prefix << val << "\n";
+    std::cout << testPrefix << val << "\n";
     if ( expected == nullptr )
     {
         // Just print
@@ -46,23 +48,22 @@ bool test( bool& isOkTotal, const char* prefix, std::string val, const char* exp
 
 // Declaration from another test_*.cpp
 bool test_tostr();
-bool test_sentry();
-bool test_objlog();
-bool test_watcher();
-
 }
 
+namespace tsv::debuglog::test_sentry1
+{
+int run();
+}
 
 /**************** MAIN() ***************/
 int main()
 {
-    using namespace tsv::debuglog::tests;
-
     std::cout<< "\n *** TOSTR module ***\n";
-    test_tostr();
-/*
-    std::cout<< "\n *** DEBUGLOG module ***\n";
-    test_sentry();
+    tsv::debuglog::tests::test_tostr();
+
+/*    std::cout<< "\n *** DEBUGLOG module ***\n";
+    tsv::debuglog::test_sentry1::run();
+
 
     std::cout<< "\n *** OBJLOG module ***\n";
     test_objlog();
