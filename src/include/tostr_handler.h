@@ -71,6 +71,7 @@ template<class T, class Deleter> class unique_ptr;
 template<class T> class shared_ptr;
 template<class T> class weak_ptr;
 template<typename... Types> class variant;
+template <typename T1, typename T2> struct pair;
 
 template<typename Visitor, typename... Variants> constexpr decltype(auto) visit(Visitor&&, Variants&&...);
 }
@@ -159,6 +160,15 @@ enum ToStrEnum : int
     ENUM_TOSTR_EXTENDED  // extended info
 };
 
+
+// convert to string as extended
+template <class T>
+std::string extended(const T& value);
+
+// convert container to joined string
+template <class T>
+std::string join(const T& value, std::string separator = ", ", int mode = ENUM_TOSTR_REPR);
+
 namespace impl
 {
 
@@ -219,12 +229,12 @@ ToStringRV __toString(const std::string& value, int mode);
 ToStringRV __toString(const std::string_view& value, int mode);
 ToStringRV __toString(const bool value, int mode);
 
-
 template<typename... Types> ToStringRV __toString(const std::variant<Types...>& value, int mode);
 template<typename T> ToStringRV __toString(const std::shared_ptr<T>& value, int mode);
 template<typename T, class Deleter> ToStringRV __toString(const std::unique_ptr<T, Deleter>& value, int mode);
 template<typename T> ToStringRV __toString(const std::shared_ptr<T>& value, int mode);
 template<typename T> ToStringRV __toString(const std::weak_ptr<T>& value, int mode);
+template<typename T1, typename T2> ToStringRV __toString(const std::pair<T1,T2>& value, int mode);
 template<typename Ret, typename... Args> ToStringRV __toString(const std::function<Ret(Args...)>& f, [[maybe_unused]]int mode = ENUM_TOSTR_DEFAULT);
 
 
@@ -405,7 +415,35 @@ ToStringRV __toString(const std::function<Ret(Args...)>& f, int /*mode*/)
     return  { std::string("(callable type: ") + ::tsv::debuglog::demangle(f.target_type().name())  + ")", true };
 }
 
+template<typename T1, typename T2> ToStringRV __toString(const std::pair<T1,T2>& value, int mode)
+{
+    mode = (mode == ENUM_TOSTR_DEFAULT) ? ENUM_TOSTR_REPR : mode;
+    return {"{" + tsv::util::tostr::toStr(value.first, mode) + ": "
+                + tsv::util::tostr::toStr(value.second, mode) + "}",
+            true};
+}
 
 } // namespace impl
+
+// convert to extended appearance string
+template <class T>
+std::string extended(const T& value)
+{
+    return toStr(value, ENUM_TOSTR_EXTENDED);
+}
+
+// convert container to joined string
+template <class T>
+std::string join(const T& value, std::string separator/* = ", "*/, int mode /*= ENUM_TOSTR_REPR*/)
+{
+    int cntr = 0;
+    std::string rv;
+    for (auto& v : value)
+    {
+        rv += (cntr++ ? separator : "") + toStr(v, mode);
+    }
+    return rv;
+}
+
 
 } // namespace tsv::util::tostr

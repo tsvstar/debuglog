@@ -90,10 +90,8 @@ public:
     }
 
 private:
-    // StartsWith
-    static std::string_view toStrDetectLiteral_;
- 
-    static bool startsWith(std::string_view base, std::string_view lookup );
+    // return true if argument is result of nested TOSTR_* macro
+    static bool detectNested(std::string_view base);
 
     // Final print
     std::string print()
@@ -133,9 +131,9 @@ private:
         const char* suffix = "";            // token added after value
 
         // 1. Tune output format + print separator if needed
-        if ( mode_ == Mode::Args && !joinOnce_)
+        if (mode_ == Mode::Args && !joinOnce_)
         {
-            if ( index_ >= names_.size())
+            if (index_ >= names_.size())
             {
                 asisFlag = false;
             }
@@ -143,12 +141,12 @@ private:
             {
                 char first = names_[index_][0];     // first symbol of #arg (detect literals and numbers)
                 asisFlag = (first == '"' || first=='\'' || ( first >= '0' && first <= '9' )
-                            || startsWith(names_[index_], toStrDetectLiteral_));
+                            || detectNested(names_[index_]));
                 excludeName = asisFlag;
             }
 
             // add separator
-            if ( !asisFlag && !acc_str_.empty() )
+            if (!asisFlag && !acc_str_.empty())
             {
                 char prev = names_[index_-1][0];
                 acc_str_ += ( prev != '"' ? ", " : " " );
@@ -157,9 +155,9 @@ private:
             modeToStr = ( detailed_==Details::Normal  ? ENUM_TOSTR_REPR : 
                           (detailed_==Details::NormalHex ? ENUM_TOSTR_REPR_HEX : ENUM_TOSTR_EXTENDED) );
         }
-        else if ( mode_ == Mode::Expr && !joinOnce_)
+        else if (mode_ == Mode::Expr && !joinOnce_)
         {
-            if ( index_ >= names_.size())
+            if (index_ >= names_.size())
             {
                 asisFlag = false;
             }
@@ -167,7 +165,7 @@ private:
             {
                 char first = names_[index_][0];     // first symbol of #arg (detect literals and numbers)
                 asisFlag = (first == '"' || first=='\'' || ( first >= '0' && first <= '9' )
-                            || startsWith(names_[index_], toStrDetectLiteral_));
+                            || detectNested(names_[index_]));
                 excludeName = asisFlag;
             }
             modeToStr = ( detailed_==Details::Normal  ? ENUM_TOSTR_REPR : 
@@ -187,7 +185,7 @@ private:
         {
             // tune format
             //modeToStr = ENUM_TOSTR_DEFAULT;// use default: print values as STR
-            modeToStr = ( (detailed_==Details::NormalHex &&   std::is_integral<Head>::value) ? ENUM_TOSTR_REPR_HEX : ENUM_TOSTR_DEFAULT);
+            modeToStr = ( (detailed_==Details::NormalHex && std::is_integral<Head>::value) ? ENUM_TOSTR_REPR_HEX : ENUM_TOSTR_DEFAULT);
             //excludeName = true;            // use default: no varnames needed
             //asisFlag = ASIS;               // use default: always print as is
             //betweenToken = "no matter";    // use default: because have no matter

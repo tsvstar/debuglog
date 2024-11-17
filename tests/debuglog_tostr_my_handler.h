@@ -2,7 +2,7 @@
 
 /**
  * Example of user-defined TOSTR handlers.
- * Define your own header with such name and place it into include directory to automatically catch
+ * Define your own header file with such name and place it to your include directory to automatically catch
 */
 
 // Forward declaration of involved user entites

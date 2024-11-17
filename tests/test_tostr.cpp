@@ -16,7 +16,8 @@
 #include <optional>
 #include <memory>
 #include <variant>
-
+#include <map>
+#include <set>
 
 namespace tsv::debuglog::tests
 {
@@ -76,6 +77,7 @@ bool test_tostr()
     TempClass* tc_null = nullptr;
     TestEnum e {TestEnum::V2};
     KnownClass k1{44, 55};
+    KnownClass k2{71, 72};
 
     // Set test-suite global variables
     isOkTotal = true;
@@ -208,6 +210,14 @@ bool test_tostr()
     test( toStr(fpNull2), "nullptr (int (*)(int, int))");
     test( toStr(lambdaPtr), "(callable type: tsv::debuglog::tests::test_tostr()::{lambda(tsv::debuglog::tests::TempClass*)#1})");
 
+    std::cout << "\n\HELPER FUNCTIONS:\n";
+    std::set<KnownClass> mySet{k1, k2};
+    std::map<std::string, KnownClass> myMap{ {"first", k1}, {"second",k2}};
+
+    test( extended(k2) );
+    test( join(mySet));
+    test( join(myMap));
+    test( join(myMap,"|",ENUM_TOSTR_EXTENDED));
 
     std::cout << "\n\nMACRO:\n";
 
@@ -234,6 +244,10 @@ bool test_tostr()
     test( TOSTR_ARGS( "ARGS+JOIN:", x, f, "; More tests:", vv, "--> ", tsv::util::tostr::Mode::JoinOnce, add(x,17), y ),
                     "ARGS+JOIN: x = -10, f = 0.100000; More tests: vv = \"str\"--> 7, y = 15" );
 
+    // Nested TOSTR_* macro added as is, so could be used in SENTRY_* macro to replace content
+    test( TOSTR_ARGS( "NESTED: ", TOSTR_JOIN("join_",1), "; ", TOSTR_FMT("fmt_{}",2)), //
+                "NESTED: join_1; fmt_2" );
+
      // test empty macro
     test( TOSTR_ARGS() + TOSTR_JOIN() + TOSTR_EXPR(), "");
 
@@ -242,7 +256,6 @@ bool test_tostr()
     test( TOSTR_ARGS("HUGE:", 2,3,4,5,6,7,8,9,a1,1,2,3,4,5,6,7,8,9,a2,1,2,3,4,5,6,7,8,9,a3,1,2,3,4,5,6,7,8,9,a4,1,2,3,4,5,6),
           // no space because both 0 and 1 args are non-vars
           "HUGE:23456789, a1 = 11123456789, a2 = 22123456789, a3 = 33123456789, a4 = 44123456");
-
 
     std::cout << "\n";
 

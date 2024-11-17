@@ -11,6 +11,9 @@
 
 using namespace std;
 
+#define STRINGIZE_DETAIL(x) #x
+#define STRINGIZE(x) STRINGIZE_DETAIL(x)
+
 namespace tsv::util::tostr
 {
 
@@ -25,12 +28,27 @@ bool showEnumInteger = true;	// "ns::enum::valName" (0) or "ns::enum::valName(in
 
 }  // namespace tsv::util::tostr::settings
 
-// To detect nested TOSTR_* and do not show their name
-std::string_view Printer::toStrDetectLiteral_ {"::tsv::util::tostr::Printer( ::tsv::util::tostr::Printer::"};
+namespace
+{
+std::string_view findPrefix(std::string_view base)
+{
+    std::string_view::size_type pos = base.find("(");
+    return base.substr(0,pos); 
+}
 
-bool Printer::startsWith(std::string_view base, std::string_view lookup )
+bool startsWith(std::string_view base, std::string_view lookup )
 {
     return ( base.size() >= lookup.size() ) && (base.substr(0,lookup.size()) == lookup );
+}
+} // anonymous namespace
+
+bool Printer::detectNested(std::string_view base)
+{
+    static std::string prefixPrinter { findPrefix(STRINGIZE(TOSTR_JOIN())) };
+    static std::string_view prefixFmt1 = "fmt::format(";
+    static std::string_view prefixFmt2 = "std::format(";
+    return (startsWith(base, prefixPrinter) || startsWith(base, prefixFmt1)
+            || startsWith(base, prefixFmt2));
 }
 
 
