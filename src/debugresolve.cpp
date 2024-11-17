@@ -85,8 +85,8 @@ namespace resolve::settings
     bool btShortList = true;       // if true, remember already printed stacktraces and just say it's number on repeat
     bool btShortListOnly = false;  // if true, do not print full stack - only short line
     int  btNumHeadFuncs = 4;       // how many first functions include into collapsed stacktrace
+    BTDisabledOutputFunc_t btDisabledOutputCallback = nullptr; // Called by getStackTrace() in case if btEnable=false
 }
-
 
 #if defined(__GNUG__) || defined(__clang)
 std::string demangle(const char* name) {
@@ -457,12 +457,18 @@ std::string resolveAddr2Name(const void* addr, bool addLineNum /*=false*/, bool 
 // RETURN VALUE:
 //      vector of values to display
 //===================================================
-std::vector<std::string> getBackTrace( int depth /*=-1*/, int skip /*=0*/)
+std::vector<std::string> getStackTrace( int depth /*=-1*/, int skip /*=0*/)
 {
     std::vector<std::string> return_value;
 
     if (!BACKTRACE_AVAILABLE || !resolve::settings::btEnable)
-        return_value.push_back( "Backtrace feature is not available" );
+    {
+        if (resolve::settings::btDisabledOutputCallback)
+            resolve::settings::btDisabledOutputCallback(depth, skip, return_value);
+        else
+            return_value.push_back( "Backtrace feature is not available" );
+        return return_value;
+    }
 
 #if BACKTRACE_AVAILABLE
     static int localSkip = 0;  // offset to skip this function (0 is unitialized)
@@ -492,7 +498,7 @@ std::vector<std::string> getBackTrace( int depth /*=-1*/, int skip /*=0*/)
     // So dynamically detect on first call how many start entries really should be skipped
     if (!localSkip && size>1)
     {
-        auto thisSymbol = symbol_resolve::resolveAddr( reinterpret_cast<void*>(tsv::debuglog::getBackTrace) );
+        auto thisSymbol = symbol_resolve::resolveAddr( reinterpret_cast<void*>(tsv::debuglog::getStackTrace) );
         auto symbolEntry = symbol_resolve::resolveAddr( array[1] );
         localSkip = (symbolEntry.funcName_ == thisSymbol.funcName_) ? 2 : 1;
     }

@@ -94,6 +94,7 @@ set(LIB_SOURCES
 set(TEST_SOURCES
     tests/main.cpp
     tests/test_tostr.cpp
+    tests/test_sentry.cpp
     tests/debuglog_tostr_my_handler.cpp
 )
 

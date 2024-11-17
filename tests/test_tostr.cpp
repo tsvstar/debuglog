@@ -210,7 +210,7 @@ bool test_tostr()
     test( toStr(fpNull2), "nullptr (int (*)(int, int))");
     test( toStr(lambdaPtr), "(callable type: tsv::debuglog::tests::test_tostr()::{lambda(tsv::debuglog::tests::TempClass*)#1})");
 
-    std::cout << "\n\HELPER FUNCTIONS:\n";
+    std::cout << "\n\nHELPER FUNCTIONS:\n";
     std::set<KnownClass> mySet{k1, k2};
     std::map<std::string, KnownClass> myMap{ {"first", k1}, {"second",k2}};
 

@@ -30,8 +30,12 @@ namespace tsv::debuglog
 
     namespace resolve::settings
     {
+
+        typedef void (*BTDisabledOutputFunc_t)(int/*depth*/,int/*skip*/,std::vector<std::string>& /*out*/);
+
         // Backtrace tunings
-        extern bool btEnable;         // if false - resolveAddr2Name() returns "??" and getStackTrace() returns "Backtrace feature is unavailable"
+        extern bool btEnable;         // if false - resolveAddr2Name() returns "??" 
+        extern BTDisabledOutputFunc_t btDisabledOutputCallback; // Called by getStackTrace() in case if btEnable=false
         extern bool btIncludeLine;    // if true, include to stacktrace "at file:line"
         extern bool btIncludeAddr;    // if true, include to stacktrace addr
         extern bool btShortList;      // if true, remember already printed stacktraces and just say it's number on repeat

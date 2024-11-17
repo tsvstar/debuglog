@@ -20,10 +20,20 @@ namespace tsv::debuglog
 
 class Settings
 {
+    using Kind = SentryLogger::Kind;
+    using Level = SentryLogger::Level;
+    using EnumType_t = SentryLogger::EnumType_t;
+
 public:
     friend class SentryLogger;
 
-    typedef void (*OutputHandler)(SentryLogger::Level level, std::string_view res);
+    typedef void (*OutputHandler)(SentryLogger::Level level, SentryLogger::Kind kind, std::string_view str);
+
+    struct KindNamePair
+    {
+        Kind kind_;
+        std::string name_;
+    };
 
     // helper class for set
     struct Operation
@@ -42,8 +52,8 @@ public:
         SentryLogger::EnumType_t enumValue_;
         int value_;
 
-        Operation(SentryLogger::Kind kind, bool enableFlag);
-        Operation(SentryLogger::Level level, Type type = Type::SetLogLevel);
+        Operation(SentryLogger::Kind kind, int enableFlag);
+        Operation(SentryLogger::Level level, Type type);
         Operation(EnableStackTraceTag tag, bool enableFlag);
 
         Operation();    // to make possible std::vector<Operation>
@@ -68,7 +78,7 @@ public:
     // todo: not flag but level + system log level
     static bool isKindAllowed(SentryLogger::Kind kind)
     {
-        return (kind >= SentryLogger::Kind::NumberOfKinds
+        return (kind < SentryLogger::Kind::NumberOfKinds
                 && !!getKindsStateArray()[static_cast<SentryLogger::EnumType_t>(kind)]);
     }
     static int getLoggerKindState(SentryLogger::Kind kind);
@@ -92,17 +102,21 @@ public:
     static void setOutputHandler(OutputHandler handler);
     static void setLoggerPrefix(std::string_view prefix);
 
+    static std::vector<std::string>& cutoffNamespaces();
+    static void setCutoffNamespaces(std::vector<std::string> arr);
+
+    // Initialize kind->name map used for output if printKindFlag_s==true
+    static void setKindNames(const std::vector<KindNamePair>& names);
 
     // for unittest
     static void setNestedLevelFlag(bool flag);
-   
 
 private:
     // if true, then align by/display depth of sentries nesting level
     static bool isNestedLevelMode_s;
     // if true, print name of context for each output line
     static bool printContextFlag_s;
-    // @todo
+    // @todo -- what I expect to do here?
     static bool printContextName_s;
     // if true, print name of kind
     static bool printKindFlag_s;
@@ -118,6 +132,10 @@ private:
     static bool stackTraceEnabled_s;
     // handler which actually do output of prepared by logger lines
     static OutputHandler outputHandler_s;
+
+    // Reverse ordered vector of namespace prefixes which are removed
+    // from auto-generated context names. The only first found is cuted.
+    static std::vector<std::string> cutoffNamespaces_s;
 
     // instance of the kind flags array
     // (function to controllable lifetime and init time)

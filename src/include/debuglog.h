@@ -1,6 +1,5 @@
 #pragma once
 
-
 /**
   Purpose: Main header. 
            Includes scope/function enter/exit, regular logging, stacktrace and TOSTR
@@ -13,21 +12,7 @@
 */
 
 
-// ===== PROLOGUE: Determine DEBUG_LOGGING ====
-
-// DEBUG_LOGGING - determine if SentryLogger macros generate output (SENTRY_*, SAY_*, SAY_DBG)
-// a) Could be replaced by exact value (0 or 1) for local file (define before #include "debuglog.h")
-// b) Could be replaced by category (DEBUGLOG_CATEG_..) for local file (define before #include "debuglog.h")
-// c) If doesn't use DEBUGLOG_CATEG_DEFAULT value
-
-#include "debuglog_categories.h"
-
-// ===== MAIN HEADER ====
-
 #include "debuglog_main.h"
-
-// ===== EPILOGUE: Extra debuglog features ====
-
 
 #if DEBUG_LOGGING
 // Include extra headers only if logger turned on

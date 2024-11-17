@@ -89,3 +89,29 @@ SAY_AND_RETURN - for SILENT case - do printEnter("rv=%s") instead "leave scope"
 +SentryLogger::Flags::AppendContextName - prepends contextName with "lastContextName--"
 +SentryLogger::Flags::Ignore - do not add into the chain [auto add flag Silent], so that is kind of max version of "disable" (maybe that is enough)
 
+
+
+//bool test( bool& isOkTotal, const char* prefix, const std::string& val,  std::function<bool(std::string_view)> fn);
+//std::string removeAddr(std::string);
+bool isPointer(std::string_view content)
+{
+    return content.size()>2 && (content.substr(0,2) == "0x");
+}
+
+
+TOSTR_* accept SentryLogger::Level -- and that works via getLast()->setTemporaryLevel
+std::string_view StackTraceArgs::prefix{};  //
+remove -- InitArgs std::string contextName{};
+InitArgs::object -- not sure that place it here is usefull. maybe that should be synonym to .enable = logobjects::isAllowedObj() ??
+
+
+// Whole-file scope. Used if no function or local scope defined and refers to the last logger in the stack.
+// The context name of such unscoped SAY_* could be extra specified by defining FILENAME_FOR_DEBUGLOG before #include "debuglog.h".
+// Sample usage is "#define FILENAME_FOR_DEBUGLOG __FILE__"
+#ifndef FILENAME_FOR_DEBUGLOG
+#define FILENAME_FOR_DEBUGLOG ""
+#endif
+
+// TODO: In which circumstances it could be called? -- void LastSentryLogger::printEnter(std::string_view content /*=""*/)
+
+TOSTR pair, tostr::util::joined/joinedAsMap()

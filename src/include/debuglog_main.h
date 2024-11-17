@@ -1,5 +1,8 @@
 #pragma once
 
+// Suppress warning: ISO C++11 requires at least one argument for the "..." in a variadic macro
+#pragma GCC system_header
+
 /**
   Purpose: Scope/function enter/exit and regular logging
   Author: Taranenko Sergey
@@ -12,6 +15,23 @@
 
 #include <string>
 
+/**
+  * DEBUG_LOGGING - determine if SentryLogger macros generate output (SENTRY_*, SAY_*, SAY_DBG)
+  * 
+  * a) Could be defined as exact value (0 or 1) for local file
+  *    #define DEBUG_LOGGING 0 // before #include "debuglog.h"
+  * b) Could be defined as a category (DEBUGLOG_CATEG_..) for local file
+  *    #define DEBUG_LOGGING DEBUGLOG_CATEG_TEST_ON // before #include "debuglog.h"
+  * c) If doesn't defined then DEBUGLOG_CATEG_DEFAULT value is used
+  * 
+  */
+
+// Define your own list of macros with categories to differential compile-time control.
+// Take a look example in tests
+#if __has_include("debuglog_categories.h")
+#include "debuglog_categories.h"
+#endif
+
 // Normally is defined in the wrapper include, this is just in case fallback
 #ifndef DEBUG_LOGGING
 #ifdef DEBUGLOG_CATEG_DEFAULT
@@ -21,51 +41,70 @@
 #endif
 #endif
 
-// If 0 - no operator<< interface available, but performance of operations is better
-// If 1 - allowed operator<< for SAY/SENTRY but that impact on speed even if such interface is not used
-#ifndef DEBUGLOG_ALLOW_STREAM_INTERFACE
-#define DEBUGLOG_ALLOW_STREAM_INTERFACE 1
+/**
+ *  Generic helpers
+ **/
+
+#define DEBUGLOG_STRINGIZE_DETAIL(x) #x
+#define DEBUGLOG_STRINGIZE(x) DEBUGLOG_STRINGIZE_DETAIL(x)
+
+// macro which do nothing as standalone statement but means "false" value in expression
+#define SENTRYLOGGER_DO_NOTHING(...) []{return false;}()
+// optimized macro which could be used only as standalone statement, but compiled faster
+#define SENTRYLOGGER_DO_NOTHING_STANDALONE(...) static_cast<void>(false)
+// helpers which expands enter message arguments if parenthesis given
+#define SENTRYLOGGER_ENTER_0(...) {}
+#define SENTRYLOGGER_ENTER_1(...) sentryLoggerEnter{TOSTR_ARGS(__VA_ARGS__)}
+
+// Enforce __VA_OPT__ usage if it is possible to avoid non-standard tricks
+#if __cplusplus >= 202002L || (defined(__clang__) && __clang_major__ > 8) || (__GNUC__ > 9)
+#define __VA_W_COMMA(...) __VA_OPT__(,) __VA_ARGS__
+#else
+#define __VA_W_COMMA(...) , ## __VA_ARGS__
+// Fail early if something wrong (some versions of GCC doesn't process this extension for unknown reason)
+static_assert(false __VA_W_COMMA(), "Unable to correctly concatenate empty __VA_ARGS__");
 #endif
 
-#if DEBUGLOG_ALLOW_STREAM_INTERFACE
-#include <sstream>
-#endif
 
-//Helper macro to select the correct macro based on the number of arguments
-#define _DEBUGLOG_GET_MACRO(_1, _2, NAME, ...) NAME
+/**
+ *  End-user macro
+ **/
 
+// SENTRY_FUNC([{initArgs}]);
+// SENTRY_FUNC([{initArgs}])(arg1, arg2, ...);
+#define SENTRY_FUNC(...) SENTRYLOGGER_CREATE_1(__PRETTY_FUNCTION__, "" __VA_W_COMMA(__VA_ARGS__))
 
-// End-user macro
-#define _SENTRY_FUNC_NOARGS()      SENTRYLOGGER_CREATE_1( ::tsv::debuglog::extractFuncName(__PRETTY_FUNCTION__), {} )
-#define _SENTRY_FUNC_ARGS(arg,...) SENTRYLOGGER_CREATE_1( ::tsv::debuglog::extractFuncName(__PRETTY_FUNCTION__), arg, TOSTR_ARGS(__VAR_ARGS__) )
-#define SENTRY_FUNC(...)           _DEBUGLOG_GET_MACRO(__VA_ARGS__, _SENTRY_FUNC_ARGS, _SENTRY_FUNC_NOARGS)(__VA_ARGS__)
+// SENTRY_CONTEXT("contextName" [,{initArgs}]);
+// SENTRY_CONTEXT("contextName" [,{initArgs}])(arg1, arg2, ...);
+#define SENTRY_CONTEXT(context,...) SENTRYLOGGER_CREATE_1("|" __FILE__ ":" DEBUGLOG_STRINGIZE(__LINE__), context __VA_W_COMMA(__VA_ARGS__))
 
-#define _SENTRY_CONTEXT_NOARGS(context)        SENTRYLOGGER_CREATE_1( context, {} )
-#define _SENTRY_CONTEXT_ARGS(context,arg,...)  SENTRYLOGGER_CREATE_1( context, arg, TOSTR_ARGS(__VAR_ARGS__) )
-#define SENTRY_CONTEXT(context, ...)           _DEBUGLOG_GET_MACRO(__VA_ARGS__, _SENTRY_CONTEXT_ARGS, _SENTRY_CONTEXT_NOARGS)(context, __VA_ARGS__)
+// SENTRY_SILENT( std::string_view contextName[, bool appendParentContext = true [, kind = Kind::Default]])
+// @note: Defined separately for each section as use specific ctor. The output level could be updated later
+// @note: Unlike SENTRY_FUNC/SENTRY_CONTEXT, no args available -- because it never prints enter message.
 
-#define SENTRY_SILENT()      SENTRYLOGGER_CREATE_1( ::tsv::debuglog::extractFuncName(__PRETTY_FUNCTION__), {SentryLogger::Level::Default, SentryLogger::Kind::Default, SentryLogger::Flags::SuppressBorders} )
+#define SENTRY_FUNC_COND(allowFlag, ...) SENTRYLOGGER_CREATE_ ## allowFlag( __PRETTY_FUNCTION__, "" __VA_W_COMMA(__VA_ARGS__))
+#define SENTRY_CONTEXT_COND(allowFlag, context, ...) SENTRYLOGGER_CREATE_ ## allowFlag("|" __FILE__ ":" DEBUGLOG_STRINGIZE(__LINE__), context __VA_W_COMMA(__VA_ARGS__))
 
-// SENTRY_FUNC_W_ARGS({/*.kind=SentryLogger::Kind::Default, .enabled=true*/}, a, b, c}
+#define SAY_DBG_L(level,...)    SENTRYLOGGER_PRINT(level)( __VA_ARGS__)
+#define SAY_ARGS_L(level,...)   SENTRYLOGGER_PRINT(level)( TOSTR_ARGS(__VA_ARGS__) )
+#define SAY_EXPR_L(level,...)   SENTRYLOGGER_PRINT(level)( TOSTR_EXPR(__VA_ARGS__) )
+#define SAY_JOIN_L(level, ...)  SENTRYLOGGER_PRINT(level)( TOSTR_JOIN(__VA_ARGS__) )
+#define SAY_FMT_L(level,...)    SENTRYLOGGER_PRINT(level)( TOSTR_FMT(__VA_ARGS__) )
 
-#define SENTRY_FUNC_COND(allowFlag, arg, ...) SENTRYLOGGER_CREATE_ ## allowFlag( ::tsv::debuglog::extractFuncName(__PRETTY_FUNCTION__), arg, TOSTR_ARGS(__VAR_ARGS__) )
-#define SENTRY_CONTEXT_COND(allowFlag, arg, ...) SENTRYLOGGER_CREATE_ ## allowFlag( context, arg, TOSTR_ARGS(__VAR_ARGS__) )
+#define SAY_DBG(...)    SENTRYLOGGER_PRINT()( __VA_ARGS__)
+#define SAY_ARGS(...)   SENTRYLOGGER_PRINT()( TOSTR_ARGS(__VA_ARGS__) )
+#define SAY_EXPR(...)   SENTRYLOGGER_PRINT()( TOSTR_EXPR(__VA_ARGS__) )
+#define SAY_JOIN( ...)  SENTRYLOGGER_PRINT()( TOSTR_JOIN(__VA_ARGS__) )
+#define SAY_FMT(...)    SENTRYLOGGER_PRINT()( TOSTR_FMT(__VA_ARGS__) )
 
-#define SAY_DBG         SENTRYLOGGER_PRINT
-#define SAY_STACKTRACE(...)  EXECUTE_IF_DEBUGLOG( if (sentryLogger.isAllowed(SentryLogger::Stage::Event, SentryLogger::Level::Fatal)) [[clang::noinline]] [[gnu::noinline]] sentryLogger.printStackTrace(__VAR_ARGS__))
-#define SAY_ARGS(...)   SENTRYLOGGER_PRINT( TOSTR_ARGS(__VA_ARGS__) )
-#define SAY_EXPR(...)   SENTRYLOGGER_PRINT( TOSTR_EXPR(__VA_ARGS__) )
-#define SAY_JOIN(...)   SENTRYLOGGER_PRINT( TOSTR_JOIN(__VA_ARGS__) )
-#define SAY_FMT(...)    SENTRYLOGGER_PRINT( TOSTR_FMT(__VA_ARGS__) )
-#define SAY_AND_RETURN(arg,...) EXECUTE_IF_DEBUGLOG2( \
-            {decltype(auto) rv = arg; if (sentryLogger.isAllowed(SentryLogger::Stage::Leave)) sentryLogger.setReturnValueStr( ::tsv::util::tostr::toStr(rv, ::tsv::util::tostr::ENUM_TOSTR_REPR) + TOSTR_JOIN(__VAR_ARGS__) ); return rv; }, \
+#define SAY_STACKTRACE(...)  EXECUTE_IF_DEBUGLOG( if (sentryLogger.isAllowedStage(SentryLogger::Stage::Event)) [[clang::noinline]] [[gnu::noinline]] sentryLogger.printStackTrace(__VA_ARGS__))
+#define SAY_AND_RETURN(arg, ...) EXECUTE_IF_DEBUGLOG2( \
+            {decltype(auto) rv = arg; if (sentryLogger.isAllowed(SentryLogger::Stage::Leave)) sentryLogger.setReturnValueStr( ::tsv::util::tostr::toStr(rv, ::tsv::util::tostr::ENUM_TOSTR_REPR) + TOSTR_JOIN(__VA_ARGS__) ); return rv; }, \
             return arg)  
 
-//TODO: (static_cast<void>(false), false)  -- left side of operator make this work as standalone statement, while comma operator and right side makes this valid expression
-#define SENTRYLOGGER_DO_NOTHING(...) static_cast<void>(false)
 #define SENTRYLOGGER_DO(action)  EXECUTE_IF_DEBUGLOG2( sentryLogger.action, SENTRYLOGGER_DO_NOTHING )
 #define EXECUTE_IF_DEBUGLOG(action)  EXECUTE_IF_DEBUGLOG2( action, SENTRYLOGGER_DO_NOTHING() )
-#define IS_LOGGING_OBJ(...) EXECUTE_IF_DEBUGLOG2(::tsv::debuglog::logobject::isAllowedObj(__VA_ARGS__), false)
+#define IS_LOGGING_OBJ(...) EXECUTE_IF_DEBUGLOG2(::tsv::debuglog::logobjects::isAllowedObj(__VA_ARGS__), false)
 
 // Example of usage: SAY_VIRT_FUNC_CALL( Base, this, func, TOSTR_ARGS() );
 #define SAY_VIRT_FUNC_CALL(BaseClass, objPtr, method, ...) EXECUTE_IF_DEBUGLOG2(\
@@ -74,61 +113,42 @@
             std::string suf = TOSTR_ARGS(__VA_ARGS__); \
             std::string funcName = ::tsv::debuglog::resolveAddr2Name( funcPtr, ::tsv::debuglog::resolve::settings::btIncludeLine, true); \
             sentryLogger.print( "Call vfunc "+ funcName + suf ); } , \
-            SENTRYLOGGER_DO_NOTHING())
+            SENTRYLOGGER_DO_NOTHING_STANDALONE())
         
+/**
+ *  Common code
+ */
 
 namespace tsv::debuglog
 {
-    // stub to make safe fallback "SAY_() << something;" and conditional compile-disabled sentries
+    // Forward declaration
+    struct StackTraceArgs;
+
+    // Stub to make safe fallback "SAY_() << something;" and conditional compile-disabled sentries
     struct SentryLoggerStub
     {
         bool isAllowed(...) const { return false; }
-        void printStackTrace(...) const {}
-        void setReturnValueStr([[maybe_unused]]std::string rv) {}
+        bool isAllowedStage(...) const { return false; }
+        bool isAllowedAndSetTempLevel(...) { return false; }
+        void printStackTrace() const {}
+        void printStackTrace(const StackTraceArgs& , ...) const {}
+        void setReturnValueStr(std::string ) {}
         void print([[maybe_unused]]std::string_view content = "") {}
-        SentryLoggerStub printStreamy([[maybe_unused]]std::string_view content = "") { return *this;}
-        template<typename T> SentryLoggerStub& operator<<([[maybe_unused]]const T& val)
-        {
-            return *this;
-        }
     };
+
+    // Truncate func arguments and return value from the __PRETTY_FUNCTION__
+    std::string_view extractFuncName(std::string_view prettyFnName);
 }
 
-/**
- *    Compile-time globally enabled debug logging
- */
 
 #if DEBUG_LOGGING
-
-#define EXECUTE_IF_DEBUGLOG2( CodeEnabled, CodeDisabled ) CodeEnabled
-
-#define SENTRYLOGGER_CREATE_0(func, pretty, arg, ...) using namespace ::tsv::debuglog; SentryLoggerStub sentryLogger(); if (sentryLogger.isAllowed(false)) sentryLogger.printStreamy()
-
-#if DEBUGLOG_ALLOW_STREAM_INTERFACE
-#define SENTRYLOGGER_CREATE_1(func, pretty, arg, ...) using namespace ::tsv::debuglog; SentryLogger sentryLogger(func, pretty, arg); if (sentryLogger.isAllowed(SentryLogger::Stage::Enter)) sentryLogger.printEnterStreamy(__VA_ARGS__)
-#define SENTRYLOGGER_PRINT(...) if (sentryLogger.isAllowed(SentryLogger::Stage::Event)) sentryLogger.printStreamy(__VA_ARGS__)
-#else
-#define SENTRYLOGGER_CREATE_1(func, pretty, arg, ...) using namespace ::tsv::debuglog; SentryLogger sentryLogger(func, pretty, arg); if (sentryLogger.isAllowed(SentryLogger::Stage::Enter)) sentryLogger.printEnter(__VA_ARGS__)
-#define SENTRYLOGGER_PRINT(...) if (sentryLogger.isAllowed(SentryLogger::Stage::Event)) sentryLogger.print(__VA_ARGS__)
-#endif
-
-// Whole-file scope. Used if no function or local scope defined and refers to the last logger in the stack.
-// The context name of such unscoped SAY_* could be extra specified by defining FILENAME_FOR_DEBUGLOG before #include "debuglog.h".
-// Sample usage is "#define FILENAME_FOR_DEBUGLOG __FILE__"
-#ifndef FILENAME_FOR_DEBUGLOG
-#define FILENAME_FOR_DEBUGLOG ""
-#endif
-
 
 namespace tsv::debuglog 
 {
 
-struct StackTraceArgs;
-
 /**
  * Core class
-*/
-
+ */
 class SentryLogger
 {
        friend class Settings;
@@ -168,9 +188,13 @@ class SentryLogger
        enum class Kind : EnumType_t
        {
           Default,
-          Tracked,        // built-in category for objlog module
-          KnownPtr,       // built-in category for register and output that
-          Test1,          // that is for unittest purpose
+          // RootRecord,     // built-in category for the root record -- TODO: I have feeling that Default is good enough
+          Tracked,        // built-in default category for objlog module
+          KnownPtr,       // built-in category for (de)register known_pointers
+
+          TestOn,         // for unit tests
+          TestOff,
+          TestBT,
 
           //..your own categories here
 
@@ -190,84 +214,53 @@ class SentryLogger
 
        struct InitArgs
        {
-           Level level = Level::Default;
            Kind kind   = Kind::Default;
+           Level level = Level::Default;
            Flags flags = Flags::Default;
-           void* object = nullptr;	// track in scope of sentry and subcalls the object "kind:object" (logobjects::isAllowedObj()==true)
-					//todo: -- not sure that place it here is usefull. maybe that should be synonym to .enable = logobjects::isAllowedObj() ??
            bool enabled = true;
-           //std::string contextName{}; //todo: -- combine SENTRY_FUNC/SENTRY_CONTEXT. why??
+           // Track in scope of sentry and subcalls the object "kind:object" (logobjects::isAllowedObj()==true)
+           // That is to show in the enter message content of "this" if its output is limited
+           void* object = nullptr;
        };
 
-#if DEBUGLOG_ALLOW_STREAM_INTERFACE
     public:
-
-        // Aux class to provide ostream operator<< iface
-        // Also do logger stage switching and actual output using write()
-        class StreamHelper
+        // Helper to print enter message
+        struct EnterHelper
         {
-        public:
-            StreamHelper(SentryLogger& log,
-                         const std::string_view contextName,
-                         const std::string_view prefix,
-                         SentryLogger::Stage stage,
-                         SentryLogger::Level level);
-            ~StreamHelper();
-
-            template <typename T>
-            StreamHelper& operator<<(const T& val)
-            {
-                if (!stream_)
-                    stream_ = new std::ostringstream();
-                *stream_ << val;
-                return *this;
-            }
-
-            StreamHelper& operator<<(const Level& level);
-
-            // Important: This change the level for the line, but still doesn't allow print
-            // if SentryLogger overall level was lower than getLogLevel()
-            /*template<>
-            StreamHelper& operator<< <Level>(const Level& level);*/
-
-        private:
-            std::ostringstream* stream_ = nullptr; //todo - try void*
-            SentryLogger& logger_;
-            // operator<< syntax shouldn't be used in other manner than temporary var, so context name exists longer than this object,
-            // so we can use string_view
-            const std::string_view contextName_;
-            const std::string_view body_;
-            Stage stage_;
-            Level level_;
+            EnterHelper(std::string_view content = "");
         };
-#endif
+
     public:
-        SentryLogger(InitArgs args,
-                     std::string_view name = "",
-                     const char* prettyName = nullptr);
+        SentryLogger(const char* prettyName = nullptr, std::string_view name = "")
+            : SentryLogger(prettyName, name, InitArgs{})
+        {}
+
+        SentryLogger(const char* prettyName, std::string_view name, InitArgs args);
+        SentryLogger(Level level,
+                     std::string_view name,
+                     bool appendContextFlag = true,
+                     Kind kind = Kind::Default);
         ~SentryLogger();
 
         SentryLogger(const SentryLogger&) = delete;
         SentryLogger& operator=(const SentryLogger&) = delete;
 
+        void printStackTrace();
         void printStackTrace(StackTraceArgs args, Level level = Level::This);
-#if DEBUGLOG_ALLOW_STREAM_INTERFACE
-        SentryLogger::StreamHelper printEnterStreamy(std::string_view content = "");
-        SentryLogger::StreamHelper printStreamy(std::string_view content = "");
-
-        // Stream interface for direct call on the object
-        template <typename T>
-        SentryLogger::StreamHelper operator<<(const T& val)
-        {
-            StreamHelper helper(*this, getContextName(), "", Stage::Event, logLevel_);
-            helper << val;
-            return helper;
-        }
-#endif
-        void printEnter(std::string_view content = "");
         void print(std::string_view content = "");
-        bool isAllowed(Stage stage) const;
+
+        // Check stage only
+        bool isAllowedStage(Stage stage) const;
+        bool isAllowed(Stage stage) const
+        {
+            return isAllowed(stage, mainLogLevel_, kind_);
+        }
         bool isAllowed(Stage stage, Level level, Kind kind) const;
+        bool isAllowedAndSetTempLevel(Stage stage, Level level);
+        bool isAllowedAndSetTempLevel(Stage stage)
+        {
+            return isAllowedAndSetTempLevel(stage, logLevel_);
+        }
 
         Level getLogLevel() const { return logLevel_; }
         void setLogLevel(Level level);
@@ -286,11 +279,14 @@ class SentryLogger
         static SentryLogger* getRoot();
 
         // actually output (public for accessing from the LastSentryLogger)
+// TODO: steamBody could be removed
         void write(std::string_view contextName,
                    Stage stage,
                    Level level,
                    std::string_view body,
                    std::string_view streamBody);
+
+// TODO: for objlog via getLast() -- do we really need?
         void write(Kind kind,
                    Level level,
                    char nestedSym,
@@ -301,15 +297,16 @@ class SentryLogger
 
     private:
         Flags flags_;
-        Level logLevel_;
+        Level logLevel_;     // current log level (could temporary differ from main after setTempLevel)
+        Level mainLogLevel_; // the sentry log level (reset to this after each print)
         Kind kind_;
         void* relatedObj_;
 
         std::string contextName_{};
-        // special case - if prettyFuncName_ is not nullptr, then we initialize
-        // SentryLogger with __PRETTY_FUNCTION__ and wait for lazy build contextName_
-        const char* prettyFuncName_ = nullptr;
-        std::string_view funcName_{};
+        // Initialized with string literal for lazy transform to context name.
+        // For the SENTRY_FUNC that is a __PRETTY_FUNCTION__
+        // For the SENTRY_CONTEXT that is a "|/path/to/file:lineno" (as default for no context)
+        const char* prettyName_ = nullptr;
 
         double startTime_ = 0.0;        // if not 0.0 - starttime since epoch
         static int currentLevel_s;      // current level (depth)
@@ -323,34 +320,45 @@ class SentryLogger
 
         //Special ctor for root node
         SentryLogger(RootTag);
+
 };
         
 /**
  * Wrapper for no-scope SAY_* calls
- * Log using logger on top of stack. If extraContext given - it is added to contextName
+ * Log using logger on top of stack
 */
 class LastSentryLogger
 {
     friend class Settings;
+    using Level = SentryLogger::Level;
 
 public:
-    LastSentryLogger(std::string_view extraContext = "");
+    LastSentryLogger() {}
 
-    void printStackTrace(StackTraceArgs args,
-                         SentryLogger::Level level = SentryLogger::Level::This);
-#if DEBUGLOG_ALLOW_STREAM_INTERFACE
-    SentryLogger::StreamHelper printEnterStreamy(std::string_view content = "");
-    SentryLogger::StreamHelper printStreamy(std::string_view content = "");
-#endif
-    void printEnter(std::string_view content = "");
+    void printStackTrace();
+    void printStackTrace(StackTraceArgs args, Level level = Level::This);
     void print(std::string_view content = "");
     bool isAllowed(SentryLogger::Stage stage) const
     {
         return SentryLogger::getLast()->isAllowed(stage);
     }
+    bool isAllowedStage(SentryLogger::Stage stage) const
+    {
+        return SentryLogger::getLast()->isAllowedStage(stage);
+    }
+    bool isAllowedAndSetTempLevel(SentryLogger::Stage stage)
+    {
+        return SentryLogger::getLast()->isAllowedAndSetTempLevel(stage);
+    }
+    bool isAllowedAndSetTempLevel(SentryLogger::Stage stage, Level level)
+    {
+        return SentryLogger::getLast()->isAllowedAndSetTempLevel(stage, level);
+    }
 
+
+// TODO: for objlog.c
     void write(SentryLogger::Kind kind,
-               SentryLogger::Level level,
+               Level level,
                char nestedSym,
                std::string_view contextName,
                std::string_view prefix,
@@ -359,9 +367,6 @@ public:
 
 private:
     const std::string& getContextName();
-
-    std::string extraContextName_;
-    std::string fullContextName_;
 };
 
 struct StackTraceArgs
@@ -370,15 +375,10 @@ struct StackTraceArgs
     int skip = 0;           // how many first entries should be skipped (to ignore aux frames)
     bool enforce = false;   // if true, ignore Settings::isStackTraceEnabled()
     SentryLogger::Kind kind = SentryLogger::Kind::Parent; // make possible to add secondary kind for stacktrace to separately extend output with it
-    //std::string_view prefix{};  //
 };
 
 
-inline bool SentryLogger::isAllowed(SentryLogger::Stage stage) const
-{
-    return isAllowed(stage, logLevel_, kind_);
-}
-
+// TODO -- not only yes/no but level of interest
 
 /**
   Registry of objects of interest, which we are interested in.
@@ -390,7 +390,7 @@ namespace logobjects
 class Guard
 {
 public:
-    Guard(SentryLogger::Kind kind, const void* objPtr, bool registerObject = true);
+    Guard(const void* objPtr, SentryLogger::Kind kind = SentryLogger::Kind::Default, bool registerObject = true);
     ~Guard();
 
 private:
@@ -404,28 +404,9 @@ void deregisterObject(SentryLogger::Kind kind, const void* objPtr);
 
 // Return true if objPtr is registered for given kind or its mode is "AllowAll"
 // (by default it isn't)
-bool isAllowedObj(void* objPtr, SentryLogger::Kind kind = SentryLogger::Kind::Default);
+bool isAllowedObj(const void* objPtr, SentryLogger::Kind kind = SentryLogger::Kind::Default);
 
 } // namespace logobjects
-
-constexpr auto extractFuncName(std::string_view pretty_function)
-{
-    // Find the last space before the opening parenthesis
-    auto paren_pos = pretty_function.rfind('(');
-    if (paren_pos == std::string_view::npos)
-    {
-        return std::string_view{};
-    }
-
-    auto last_space = pretty_function.rfind(' ', paren_pos);
-    if (last_space == std::string_view::npos)
-    {
-        return std::string_view{};
-    }
-
-    // Extract everything after the last space up to the opening parenthesis
-    return pretty_function.substr(last_space + 1, paren_pos - last_space - 1);
-}
 
 } // namespace tsv::debuglog
 
@@ -433,34 +414,44 @@ using tsv::debuglog::SentryLogger;
 
 namespace
 {
-   ::tsv::debuglog::LastSentryLogger sentryLoger(FILENAME_FOR_DEBUGLOG);
+   ::tsv::debuglog::LastSentryLogger sentryLogger;
 }
 
 inline SentryLogger::EnumType_t operator|(const SentryLogger::Flags v1,
-                                          const SentryLogger::EnumType_t v2)
+                                          const SentryLogger::Flags v2)
 {
     return (static_cast<SentryLogger::EnumType_t>(v1)
             | static_cast<SentryLogger::EnumType_t>(v2));
 }
+
+/**
+ *    Compile-time globally enabled debug logging
+ */
+
+#define SENTRY_SILENT(context, ...)  using namespace ::tsv::debuglog; SentryLogger sentryLogger(::tsv::debuglog::SentryLogger::Level::Default, context __VA_W_COMMA(__VA_ARGS__));
+
+#define EXECUTE_IF_DEBUGLOG2( CodeEnabled, CodeDisabled ) CodeEnabled
+// Snippet which do nothing but euqiv to SENTRY_* (that is for disabled branch of conditional SENTRY_*_COND)
+#define SENTRYLOGGER_CREATE_0 (...) using namespace ::tsv::debuglog; SentryLoggerStub sentryLogger; \
+     if (false) SentryLoggerStub SENTRYLOGGER_ENTER_0
+// Arguments: pretty, context[, arg]
+#define SENTRYLOGGER_CREATE_1(...) using namespace ::tsv::debuglog; SentryLogger sentryLogger{__VA_ARGS__}; \
+     if (sentryLogger.isAllowed(SentryLogger::Stage::Enter)) SentryLogger::EnterHelper SENTRYLOGGER_ENTER_1
+#define SENTRYLOGGER_PRINT(...) if (sentryLogger.isAllowedAndSetTempLevel(SentryLogger::Stage::Event __VA_W_COMMA(__VA_ARGS__))) sentryLogger.print
 
 #else
 
 /**
  *      Compile-time generally disabled debug logging (DEBUGLOGGING = 0)
  */
+static_assert(false,"stop2");
 
-#define EXECUTE_IF_DEBUGLOG2( CodeEnabled, CodeDisabled ) CodeDisabled
+#define EXECUTE_IF_DEBUGLOG2(CodeEnabled, CodeDisabled) CodeDisabled
 
-#if DEBUGLOG_ALLOW_STREAM_INTERFACE
-#define SENTRYLOGGER_CREATE_0(func, pretty, arg, ...) using namespace ::tsv::debuglog; SentryLoggerStub sentryLogger(); if (sentryLogger.isAllowed(false)) sentryLogger.printStreamy()
-#define SENTRYLOGGER_CREATE_1(func, pretty, arg, ...) using namespace ::tsv::debuglog; SentryLoggerStub sentryLogger(); if (sentryLogger.isAllowed(false)) sentryLogger.printStreamy()
-#define SENTRYLOGGER_PRINT(...)      if (sentryLogger.isAllowed(false)) ::tsv::debuglog::SentryLoggerStub()
-
-
-#else
-#define SENTRYLOGGER_CREATE_0(func, pretty, arg, ...) SENTRYLOGGER_DO_NOTHING()
-#define SENTRYLOGGER_CREATE_1(func, pretty, arg, ...) SENTRYLOGGER_DO_NOTHING()
-#define SENTRYLOGGER_PRINT(...)      SENTRYLOGGER_DO_NOTHING()
-#endif
+#define SENTRY_SILENT(context, ...) SENTRYLOGGER_DO_NOTHING_STANDALONE()
+// Need to care of optional ()() syntax, so use more complex "do nothing" construction
+#define SENTRYLOGGER_CREATE_0(...)  if (false) SentryLoggerStub SENTRYLOGGER_ENTER_0
+#define SENTRYLOGGER_CREATE_1(...)  if (false) SentryLoggerStub SENTRYLOGGER_ENTER_0
+#define SENTRYLOGGER_PRINT(...)     SENTRYLOGGER_DO_NOTHING_STANDALONE
 
 #endif

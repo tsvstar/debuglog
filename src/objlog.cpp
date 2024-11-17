@@ -45,9 +45,6 @@ bool ObjLogger::includeContextName_s = true;
 
 namespace
 {
-    LastSentryLogger lastLogger("");
-
-
     void printObjEvent(SentryLogger::Kind kind, SentryLogger::Level level, std::string_view content)
     {
         auto* last = SentryLogger::getLast();
@@ -57,7 +54,7 @@ namespace
     void printStackTrace(int depth, SentryLogger::Level level, SentryLogger::Kind kind)
     {
         if (depth)
-            lastLogger.printStackTrace({/*.depth=*/depth, /*.skip=*/2, /*enforce*/false, /*.kind=*/kind}, level);
+            SentryLogger::getLast()->printStackTrace({/*.depth=*/depth, /*.skip=*/2, /*enforce*/false, /*.kind=*/kind}, level);
     }
 
     inline ptrdiff_t getOffs(const void* loggerSelf, const void* ptr, SentryLogger::Level level, SentryLogger::Kind kind)

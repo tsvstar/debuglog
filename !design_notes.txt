@@ -1,0 +1,11 @@
+1.a. There is no reliable approach to differentiate default (0 args) and extended (1 or more args) cases in macro.
+  b. Multiple arguments of uniform initializer of ctor (which are parts of {} separated with comma) conflicted with macro arguments.
+     It is possible to wrap that arg into (), but it is easy to forget.
+     Plus such parenthesis brokes the only hack which was able to differ 0 from 1 args cases.
+
+Non-standard approach to solve both problems is to separate the initializer arguments and enter message arguments into two different parenthesis scopes.
+The trick used here is that preprocessor doesn't expand macroses with arguments if there are no parenthesis in instantiation place.
+The only single-statement which do some action with no parenthesis is object constructing. That conflicts with ability to do stream-like operations there, so deprecate such syntax.
+
+Also rely on that this helper is contingous part of the MACRO, use locally remembered pointer to the last constructed sentry existed for sure
+

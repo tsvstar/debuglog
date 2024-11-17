@@ -17,10 +17,9 @@
 #if !defined(__clang__) && defined(__GNUC__)
 // Macro to get find out address of virtual function which will be actually called [GCC version]
 // It uses GCC-specific extension "PMF convesrion" (Extracting the Function Pointer from a Bound Pointer to Member Function)
-#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
 #define WHICH_VIRTFUNC_WILL_BE_CALLED( BaseClass, objPtr, method ) \
-       ( objPtr ? (void*)(objPtr->*(&BaseClass::method)) : nullptr )
+       ( objPtr ? reinterpret_cast<void*>(objPtr->*(&BaseClass::method)) : nullptr )
 #endif
 
 
