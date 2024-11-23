@@ -22,44 +22,10 @@
 
 #include "test_tostr.h"
 #include "tostr_fmt_include.h"
+#include "main.h"
 
 namespace tsv::debuglog::tests
 {
-
-extern bool isOkTotal;
-extern const char* testPrefix;
-
-// Declaration from main.cpp
-bool test(std::string&& val, const char* expected, bool removeAddrFlag, bool checkEquality);
-
-namespace
-{
-std::string loggedString;
-
-void testLoggerHandlerSentry(SentryLogger::Level level, SentryLogger::Kind kind, std::string_view line)
-{
-    using Level = SentryLogger::Level;
-    using Kind = SentryLogger::Kind;
-    static std::unordered_map<Level,std::string> levels { {Level::Warning, "Warn"}, {Level::Info,"Info"}, {Level::Fatal, "Fatal"}};
-    static std::unordered_map<Kind,std::string> kinds { {Kind::Default, "Dflt"}, {Kind::TestOn,"TestOn"}, {Kind::TestOff, "TestOff"}, {Kind::TestBT,"BT"}};    
-
-//    loggedString += TOSTR_FMT("[{}:{}]{}\n", static_cast<unsigned>(level), static_cast<unsigned>(kind), line);
-    loggedString += TOSTR_FMT("[{}:{}]{}\n", levels[level], kinds[kind], line);
-}
-
-void testBacktraceHandler(int depth, int /*skip*/, std::vector<std::string>& out)
-{
-    out.push_back( TOSTR_FMT("stacktrace disabled. depth={}", depth) );
-}
-
-bool TEST(const char* expected = nullptr, bool removeAddrFlag = false)
-{
-    auto rv = tsv::debuglog::tests::test(std::move(loggedString), expected, removeAddrFlag, true);
-    loggedString.clear();
-    return rv;
-}
-
-} // anonymous namespace
 
 namespace test_sentry1
 {
@@ -335,39 +301,10 @@ void testTimerSentry()
 
 bool run()
 {
-    isOkTotal = true;
-
-    resolve::settings::btEnable = false;
-    resolve::settings::btDisabledOutputCallback = testBacktraceHandler;
-
     using Op = Settings::Operation;
-    Settings::setOutputHandler(testLoggerHandlerSentry);
-    SentryLogger::getRoot()->setLogLevel( SentryLogger::Level::Warning );
-    Settings::setCutoffNamespaces( {"tsv::debuglog::tests::"} );
-    // sample names
-    Settings::setKindNames( {{SentryLogger::Kind::TestOn, "[on]"},
-                             {SentryLogger::Kind::TestBT, "[BT]"}}
-                             );
 
-    Settings::set( { { SentryLogger::Level::Info, Op::SetLogLevel},        // system logging level
-                     { SentryLogger::Level::Info, Op::SetDefaultLogLevel}, // this level assigned to sentry if not given
-
-                     // NOTE: Settings::enableStacktrace() and resolve::settings::btEnable are different flags.
-                     //    First one determine should SAY_STACKTRACE() do anything or not
-                     //    Second determine if stacktrace feature available in the system.
-                     { Op::EnableStackTraceTag{}, true},          // stacktrace enabled
-
-                     // Turn off Kind::TestOff, and turn on rest kinds
-                     { SentryLogger::Kind::Default, true },
-                     { SentryLogger::Kind::TestOn,  true },
-                     { SentryLogger::Kind::TestOff, false },
-
-                     // Kind could be separated or combined category which contains integer value.
-                     // This example is combine totally on/off kind and stacktrace depth
-                     // take a look test_sentry to see how it could be compile-time disabled
-                     { SentryLogger::Kind::TestBT,  DEBUGLOG_CATEG_TEST_BT }
-                   } );
-
+    isOkTotal = true;
+    setupDefault("tsv::debuglog::tests::");
 
     testRawCall();
     testTrivial();
@@ -457,8 +394,8 @@ bool run()
         "[Info:TestOn]02>>[on]{Context_loop_2}>> Enter scope\n"
         "[Info:TestOn]02  [on]{Context_loop_2}new_value{2}  =  value{0} + i{2} \n"
         "[Info:TestOn]02<<[on]{Context_loop_2}>> Leave scope\n"
-        "[Info:Dflt]02>>{test_sentry.cpp:212}>> Enter x = 3\n"
-        "[Info:Dflt]02<<{test_sentry.cpp:212}>> Leave scope\n"
+        "[Info:Dflt]02>>{test_sentry.cpp:178}>> Enter x = 3\n"
+        "[Info:Dflt]02<<{test_sentry.cpp:178}>> Leave scope\n"
         "[Info:Dflt]01<{testContext}>> Leave scope\n"
     );
 

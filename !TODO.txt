@@ -115,3 +115,11 @@ InitArgs::object -- not sure that place it here is usefull. maybe that should be
 // TODO: In which circumstances it could be called? -- void LastSentryLogger::printEnter(std::string_view content /*=""*/)
 
 TOSTR pair, tostr::util::joined/joinedAsMap()
+
+// debug_main.h for COMPLETELY TURNED OFF case (do we need that?? in this cases everything is collapsed to empty macro) 
+struct SentryLogger
+{
+    enum class Level : unsigned;
+    enum class Kind : unsigned;
+};
+// todo - move out enums

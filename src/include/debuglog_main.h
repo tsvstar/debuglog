@@ -47,13 +47,15 @@
 
 #define DEBUGLOG_STRINGIZE_DETAIL(x) #x
 #define DEBUGLOG_STRINGIZE(x) DEBUGLOG_STRINGIZE_DETAIL(x)
+#define DEBUGLOG_PASTE_IMPL(x,y) x ## y
+#define DEBUGLOG_PASTE(x,y) DEBUGLOG_PASTE_IMPL(x,y)
 
 // macro which do nothing as standalone statement but means "false" value in expression
 #define SENTRYLOGGER_DO_NOTHING(...) []{return false;}()
 // optimized macro which could be used only as standalone statement, but compiled faster
 #define SENTRYLOGGER_DO_NOTHING_STANDALONE(...) static_cast<void>(false)
 // helpers which expands enter message arguments if parenthesis given
-#define SENTRYLOGGER_ENTER_0(...) {}
+#define SENTRYLOGGER_ENTER_0(...) sentryLoggerEnter{}
 #define SENTRYLOGGER_ENTER_1(...) sentryLoggerEnter{TOSTR_ARGS(__VA_ARGS__)}
 
 // Enforce __VA_OPT__ usage if it is possible to avoid non-standard tricks
@@ -82,8 +84,8 @@ static_assert(false __VA_W_COMMA(), "Unable to correctly concatenate empty __VA_
 // @note: Defined separately for each section as use specific ctor. The output level could be updated later
 // @note: Unlike SENTRY_FUNC/SENTRY_CONTEXT, no args available -- because it never prints enter message.
 
-#define SENTRY_FUNC_COND(allowFlag, ...) SENTRYLOGGER_CREATE_ ## allowFlag( __PRETTY_FUNCTION__, "" __VA_W_COMMA(__VA_ARGS__))
-#define SENTRY_CONTEXT_COND(allowFlag, context, ...) SENTRYLOGGER_CREATE_ ## allowFlag("|" __FILE__ ":" DEBUGLOG_STRINGIZE(__LINE__), context __VA_W_COMMA(__VA_ARGS__))
+#define SENTRY_FUNC_COND(allowFlag, ...) DEBUGLOG_PASTE(SENTRYLOGGER_CREATE_, allowFlag)( __PRETTY_FUNCTION__, "" __VA_W_COMMA(__VA_ARGS__))
+#define SENTRY_CONTEXT_COND(allowFlag, context, ...) DEBUGLOG_PASTE(SENTRYLOGGER_CREATE_, allowFlag)("|" __FILE__ ":" DEBUGLOG_STRINGIZE(__LINE__), context __VA_W_COMMA(__VA_ARGS__))
 
 #define SAY_DBG_L(level,...)    SENTRYLOGGER_PRINT(level)( __VA_ARGS__)
 #define SAY_ARGS_L(level,...)   SENTRYLOGGER_PRINT(level)( TOSTR_ARGS(__VA_ARGS__) )
@@ -134,6 +136,9 @@ namespace tsv::debuglog
         void printStackTrace(const StackTraceArgs& , ...) const {}
         void setReturnValueStr(std::string ) {}
         void print([[maybe_unused]]std::string_view content = "") {}
+        void setLogLevel(...) {}
+        void setFlag(...) {}
+        bool checkFlags(...) const {return false;}
     };
 
     // Truncate func arguments and return value from the __PRETTY_FUNCTION__
@@ -279,12 +284,11 @@ class SentryLogger
         static SentryLogger* getRoot();
 
         // actually output (public for accessing from the LastSentryLogger)
-// TODO: steamBody could be removed
         void write(std::string_view contextName,
                    Stage stage,
                    Level level,
                    std::string_view body,
-                   std::string_view streamBody);
+                   std::string_view suffix);
 
 // TODO: for objlog via getLast() -- do we really need?
         void write(Kind kind,
@@ -293,7 +297,7 @@ class SentryLogger
                    std::string_view contextName,
                    std::string_view prefix,
                    std::string_view body,
-                   std::string_view streamBody);
+                   std::string_view suffix);
 
     private:
         Flags flags_;
@@ -354,7 +358,6 @@ public:
     {
         return SentryLogger::getLast()->isAllowedAndSetTempLevel(stage, level);
     }
-
 
 // TODO: for objlog.c
     void write(SentryLogger::Kind kind,
@@ -432,7 +435,7 @@ inline SentryLogger::EnumType_t operator|(const SentryLogger::Flags v1,
 
 #define EXECUTE_IF_DEBUGLOG2( CodeEnabled, CodeDisabled ) CodeEnabled
 // Snippet which do nothing but euqiv to SENTRY_* (that is for disabled branch of conditional SENTRY_*_COND)
-#define SENTRYLOGGER_CREATE_0 (...) using namespace ::tsv::debuglog; SentryLoggerStub sentryLogger; \
+#define SENTRYLOGGER_CREATE_0(...) using namespace ::tsv::debuglog; SentryLoggerStub sentryLogger; \
      if (false) SentryLoggerStub SENTRYLOGGER_ENTER_0
 // Arguments: pretty, context[, arg]
 #define SENTRYLOGGER_CREATE_1(...) using namespace ::tsv::debuglog; SentryLogger sentryLogger{__VA_ARGS__}; \
