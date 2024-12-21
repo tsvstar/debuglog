@@ -9,3 +9,24 @@ The only single-statement which do some action with no parenthesis is object con
 
 Also rely on that this helper is contingous part of the MACRO, use locally remembered pointer to the last constructed sentry existed for sure
 
+
+2. There is a "Kind" enum exists, which should be able to extended by the library user.
+The library should know how many kinds are in the enum (what is max possible value).
+
+The most direct way is to include the library into project as a sources and modify that sources.
+The alternate tricky way implemented here:
+- The "debuglog_categories.h" header should be created by the user to define that enum. If such header is found, the main header include it instead defining default enum content.
+  The enum should follow the template - have the same "system" values in the begining, then user's values and ends with NumberOfKinds.
+- the global tsv::debuglog::getNumberOfKinds() is the callback to say to the library enum's maximum value.
+  the library defines that function with weak linking to provide default value
+
+
+3. To correctly process TOSTR handlers, we need to know user-defined handlers BEFORE template tsv::util::tostr::toStr<T>() definition.
+At same time we need to know some enum and structs to define such handlers.
+Preferable without extra includes in each usage in the user sources.
+
+The most direct way is to move out that required entities to small include file, write own "my_tostr.h" which include this header, declare user handlers and then include system tostr_handler.h/tostr.h.
+To make convinient work (single include) the own wrapper "mydebuglog.h" for the main header "debuglog.h" should be written to to include that "my_tostr.h"
+
+The alternative way proposed by the library is to define user handlers in the "debuglog_tostr_my_handler.h"
+If such header is found, it will be automatically included in the library heaader without any extra actions.

@@ -14,6 +14,17 @@
 // In most files this include doesn't needed, but here we set up btEnable
 #include "debugresolve.h"
 
+
+namespace tsv::debuglog
+{
+// Redefinition of the library function to specify new max value of enum Kind
+EnumType_t getNumberOfKinds()
+{
+    static_assert(static_cast<unsigned>(sentry_enum::Kind::NumberOfKinds) == 25, "Wrong NumberOfKinds");
+    return static_cast<sentry_enum::EnumType_t>(sentry_enum::Kind::NumberOfKinds);
+}
+}
+
 /************** TEST **********/
 
 namespace tsv::debuglog::tests
@@ -44,6 +55,9 @@ std::string escapeSpecialChars(const std::string& str)
 // Function to find and display differences
 void showDifferences(const std::string& str1, const std::string& str2)
 {
+    // Comment if not clear what is the real difference
+    return;
+
     std::size_t len1 = str1.size();
     std::size_t len2 = str2.size();
 
@@ -69,10 +83,9 @@ void showDifferences(const std::string& str1, const std::string& str2)
         }
     }
 
-    // Traceback to find the differences
-    std::size_t idx1 = len1, idx2 = len2;
-    std::size_t contextStart;
     std::ostringstream diff;
+    std::size_t contextStart;
+    std::size_t idx1 = len1, idx2 = len2;
 
     while (idx1 > 0 || idx2 > 0)
     {
@@ -87,32 +100,40 @@ void showDifferences(const std::string& str1, const std::string& str2)
             // Insertion in str2
             diff << "Insert at " << idx1 << ": "
                  << escapeSpecialChars(std::string(1, str2[idx2 - 1])) << "\n";
-            contextStart = idx2 < 20 ? 0 : idx2;
-            diff << "CONTEXT: " << std::string_view(str2).substr(contextStart, 20)
+            contextStart = idx2 < 20 ? 0 : idx2-20;
+            diff << "CONTEXT: " << std::string_view(str2).substr(contextStart, idx2<20?idx2:20)
                  << "!!" << std::string_view(str2).substr(idx2, 20) << "\n";
             --idx2;
         }
         else if (idx1 > 0 && (idx2 == 0 || dp[idx1 - 1][idx2] <= dp[idx1][idx2 - 1]))
         {
-            // Deletion in str1
-            diff << "Remove at " << idx1 - 1 << ": "
-                 << escapeSpecialChars(std::string(1, str1[idx1 - 1])) << "\n";
-            contextStart = idx1 <20? 0 : idx1;
-            diff << "CONTEXT: " << std::string_view(str2).substr(contextStart, 20)
-                 << "!!" << std::string_view(str2).substr(idx2, 20) << "\n";
-            --idx1;
+
+            if (idx2>0 && (idx1 == 1 || dp[idx1-1][idx2 - 1] < dp[idx1 - 2][idx2]))
+            {
+                diff << "Replace at " << idx1 - 1 << ": "
+                    << escapeSpecialChars(std::string(1, str1[idx1 - 1])) << " with "
+                    << escapeSpecialChars(std::string(1, str2[idx2 - 1])) << "\n";
+                --idx1;
+                --idx2;
+                contextStart = idx1 < 20 ? 0 : idx1 - 20;
+                diff << "CONTEXT: " << std::string_view(str1).substr(contextStart, idx1<20?idx1:20)
+                    << "!!" << std::string_view(str1).substr(idx1, 20) << "\n";
+            }
+            else
+            {
+                // Deletion in str1
+                diff << "Remove at " << idx1 - 1 << ": "
+                    << escapeSpecialChars(std::string(1, str1[idx1 - 1])) << "\n";
+                contextStart = idx1 < 20 ? 0 : idx1 - 20;
+                diff << "CONTEXT: " << std::string_view(str1).substr(contextStart, idx1<20?idx1:20)
+                    << "!!" << std::string_view(str1).substr(idx1, 20) << "\n";
+                --idx1;
+
+            }
         }
         else
         {
-            // Substitution (not expected based on your request, but included for completeness)
-            diff << "Replace at " << idx1 - 1 << ": "
-                 << escapeSpecialChars(std::string(1, str1[idx1 - 1])) << " with "
-                 << escapeSpecialChars(std::string(1, str2[idx2 - 1])) << "\n";
-            contextStart = idx1 <20? 0 : idx1;
-            diff << "CONTEXT: " << std::string_view(str2).substr(contextStart, 20)
-                 << "!!" << std::string_view(str2).substr(idx2, 20) << "\n";
-            --idx1;
-            --idx2;
+            diff << "NEVER SHOULD HAPPENS";
         }
     }
 
@@ -146,12 +167,9 @@ bool test(std::string&& val, const char* expected/*= nullptr*/, bool removeAddrF
     isOkTotal = isOkTotal && isOk;
     if ( !isOk )
         std::cout << "TEST FAIL! Should be \n" << expected << "|\n";
-
-/*    
-    // Uncomment if not clear what is the real difference
+   
     if (!isOk)
         showDifferences(val, expected);
-//*/
 
     return isOk;
 }
@@ -161,7 +179,7 @@ void testLoggerHandlerSentry(SentryLogger::Level level, SentryLogger::Kind kind,
     using Level = SentryLogger::Level;
     using Kind = SentryLogger::Kind;
     static std::unordered_map<Level,std::string> levels { {Level::Warning, "Warn"}, {Level::Info,"Info"}, {Level::Error,"Err"}, {Level::Fatal, "Fatal"}};
-    static std::unordered_map<Kind,std::string> kinds { {Kind::Default, "Dflt"}, {Kind::TestOn,"TestOn"}, {Kind::TestOff, "TestOff"}, {Kind::TestOff, "Tracked"}, {Kind::TestBT,"BT"}};    
+    static std::unordered_map<Kind,std::string> kinds { {Kind::Default, "Dflt"}, {Kind::TestOn,"TestOn"}, {Kind::TestOff, "TestOff"}, {Kind::Tracked, "Tr"}, {Kind::TestBT,"BT"}};    
 
 //    loggedString += TOSTR_FMT("[{}:{}]{}\n", static_cast<unsigned>(level), static_cast<unsigned>(kind), line);
     loggedString += TOSTR_FMT("[{}:{}]{}\n", levels[level], kinds[kind], line);
@@ -227,11 +245,15 @@ bool test_tostr();
 }
 namespace tsv::debuglog::tests::test_sentry1
 {
-int run();
+void run();
 }
 namespace tsv::debuglog::tests::test_sentry2
 {
-int run();
+void run();
+}
+namespace tsv::debuglog::tests::objlog
+{
+void run();
 }
 
 /**************** MAIN() ***************/
@@ -248,7 +270,7 @@ int main()
 
 /*
     std::cout<< "\n *** OBJLOG module ***\n";
-    test_objlog();
+    tsv::debuglog::tests::objlog::run();
 
     std::cout<< "\n *** DEBUGWATCH module ***\n";
     test_watcher();

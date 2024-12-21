@@ -18,6 +18,9 @@
 namespace tsv::debuglog 
 {
 
+// The function in user-code which overrides default one and determine real size of SentryLogger::Kind max element
+extern sentry_enum::EnumType_t getNumberOfKinds() __attribute__((weak));
+
 class Settings
 {
     using Kind = SentryLogger::Kind;
@@ -76,11 +79,7 @@ public:
     static void set( std::vector<Operation> ops );
 
     // todo: not flag but level + system log level
-    static bool isKindAllowed(SentryLogger::Kind kind)
-    {
-        return (kind < SentryLogger::Kind::NumberOfKinds
-                && !!getKindsStateArray()[static_cast<SentryLogger::EnumType_t>(kind)]);
-    }
+    static bool isKindAllowed(SentryLogger::Kind kind);
     static int getLoggerKindState(SentryLogger::Kind kind);
     static SentryLogger::Level getLoggerKindStateAsLevel(SentryLogger::Kind kind);
     static void setLoggerKindState(SentryLogger::Kind kind, bool enableFlag = true);
@@ -98,7 +97,9 @@ public:
     static bool getPrintContextFlag() { return printContextFlag_s; }
     static void setPrintContextFlag(bool flag);
 
+    static SentryLogger::Level getDefaultLevel();
     static void setDefaultLogLevel(SentryLogger::Level level);
+
     static void setOutputHandler(OutputHandler handler);
     static void setLoggerPrefix(std::string_view prefix);
 

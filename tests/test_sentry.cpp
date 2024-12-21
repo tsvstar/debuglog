@@ -299,7 +299,7 @@ void testTimerSentry()
     // timer of sentry 1 still on, so report on exit
 }
 
-bool run()
+void run()
 {
     using Op = Settings::Operation;
 
@@ -476,8 +476,6 @@ bool run()
     );
 
 //@todo -why doesn't print kind?? because map is not initialized. do that via settings vector<pair<>>
-
-    return isOkTotal;
 }
 
 } // namespace test_sentry1

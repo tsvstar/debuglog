@@ -14,6 +14,7 @@
 */
 
 #include <string>
+#include "debuglog_enum.h"
 
 /**
   * DEBUG_LOGGING - determine if SentryLogger macros generate output (SENTRY_*, SAY_*, SAY_DBG)
@@ -24,13 +25,8 @@
   *    #define DEBUG_LOGGING DEBUGLOG_CATEG_TEST_ON // before #include "debuglog.h"
   * c) If doesn't defined then DEBUGLOG_CATEG_DEFAULT value is used
   * 
+  * Categories are defined in "debuglog_categories.h" 
   */
-
-// Define your own list of macros with categories to differential compile-time control.
-// Take a look example in tests
-#if __has_include("debuglog_categories.h")
-#include "debuglog_categories.h"
-#endif
 
 // Normally is defined in the wrapper include, this is just in case fallback
 #ifndef DEBUG_LOGGING
@@ -143,8 +139,8 @@ namespace tsv::debuglog
 
     // Truncate func arguments and return value from the __PRETTY_FUNCTION__
     std::string_view extractFuncName(std::string_view prettyFnName);
-}
 
+}
 
 #if DEBUG_LOGGING
 
@@ -160,23 +156,9 @@ class SentryLogger
 
     public:
        // All enums of the class matches to this type
-       using EnumType_t = unsigned;
-
-       enum class Level : EnumType_t
-       {
-          Fatal,
-          Error,
-          Warning,
-          Important,
-          Info,
-          Debug,
-          Trace,
-          // Special cases. Important to keep this block Off-Default-Parent as is at the end
-          Off,      // Turn off logger  
-          Default,  // Special kind - replaced to Settings::getDefaultSentryLoggerLevel()
-          This,     // Special kind - means level of the logger
-          Parent    // Special kind - means level of upper level logger
-       };
+       using EnumType_t = sentry_enum::EnumType_t;
+       using Level = sentry_enum::Level;
+       using Kind = sentry_enum::Kind;
 
        enum class Flags : EnumType_t
        {
@@ -188,25 +170,6 @@ class SentryLogger
            Force          = 1<<5, // if true, all kinds and all stages if not out of loglevel
            AppendContextName = 1<<6, // if true, the contextName will be "PreviousContextName--ThisContextName"
            SuppressBorders = SuppressEnter|SuppressLeave
-       };
-
-       enum class Kind : EnumType_t
-       {
-          Default,
-          // RootRecord,     // built-in category for the root record -- TODO: I have feeling that Default is good enough
-          Tracked,        // built-in default category for objlog module
-          KnownPtr,       // built-in category for (de)register known_pointers
-
-          TestOn,         // for unit tests
-          TestOff,
-          TestBT,
-
-          //..your own categories here
-
-          // Special cases. Important to keep this block NumberOfKinds-Off-Parent as is at the end
-          NumberOfKinds, 
-          Off = NumberOfKinds,
-          Parent          // Special kind - means kind of sentry
        };
 
        enum Stage : EnumType_t

@@ -73,7 +73,27 @@ bool startsWith(std::string_view base, std::string_view lookup )
 {
     return ( base.size() >= lookup.size() ) && (base.substr(0,lookup.size()) == lookup );
 }
+
+inline bool isKindValid(sentry_enum::Kind kind)
+{
+    return (kind > SentryLogger::Kind::Off
+            && static_cast<sentry_enum::EnumType_t>(kind) < getNumberOfKinds());
+}
+
 }   // namespace anonymous
+
+
+/**
+ * Weak linked callback
+ */
+
+// Default implementation
+// @note It should be replaced in the user code if enum Kind is redefined
+sentry_enum::EnumType_t __attribute__((weak)) getNumberOfKinds() 
+{
+    return static_cast<sentry_enum::EnumType_t>(sentry_enum::Kind::NumberOfKinds);
+}
+
 
 /**
     Settings
@@ -81,16 +101,26 @@ bool startsWith(std::string_view base, std::string_view lookup )
 int* Settings::getKindsStateArray()
 {
     // Default everything is turned off
-    static int kindsStateArray[static_cast<EnumType_t>(Kind::NumberOfKinds)
-                                + 1]{};
-    LOCAL_DEBUG( std::string arr; for (int i: kindsStateArray) arr+="."+std::to_string(i); fmt::print("<{}>", arr); )
-    return kindsStateArray;
+    static std::vector<int> kindsStateArray{
+        static_cast<std::vector<int>::size_type>(getNumberOfKinds() + 1)};
+    LOCAL_DEBUG(std::string arr;
+                for (int i
+                     : kindsStateArray) arr += "." + std::to_string(i);
+                fmt::print("<{}>", arr);)
+    return kindsStateArray.data();
+}
+
+bool Settings::isKindAllowed(SentryLogger::Kind kind)
+{
+    return (kind > SentryLogger::Kind::Off
+            && static_cast<EnumType_t>(kind) < getNumberOfKinds()
+            && !!getKindsStateArray()[static_cast<EnumType_t>(kind)]);
 }
 
 int Settings::getLoggerKindState(SentryLogger::Kind kind)
 {
     LOCAL_DEBUG( fmt::print("getKind_{}\n", static_cast<int>(kind)); )
-    if (kind < Kind::NumberOfKinds)
+    if (static_cast<EnumType_t>(kind) < getNumberOfKinds())
         return getKindsStateArray()[static_cast<EnumType_t>(kind)];
     return 0;
 }
@@ -98,7 +128,7 @@ int Settings::getLoggerKindState(SentryLogger::Kind kind)
 SentryLogger::Level Settings::getLoggerKindStateAsLevel(SentryLogger::Kind kind)
 {
     EnumType_t rv = static_cast<EnumType_t>(Level::Off);
-    if (kind < Kind::NumberOfKinds)
+    if (static_cast<EnumType_t>(kind) < getNumberOfKinds())
         rv = static_cast<EnumType_t>(getKindsStateArray()[static_cast<EnumType_t>(kind)]);
     if (rv > static_cast<EnumType_t>(Level::Off))
         rv = static_cast<EnumType_t>(Level::Off);
@@ -107,21 +137,21 @@ SentryLogger::Level Settings::getLoggerKindStateAsLevel(SentryLogger::Kind kind)
 
 void Settings::setLoggerKindState(SentryLogger::Kind kind, bool enableFlag /*=true*/)
 {
-    if (kind < Kind::NumberOfKinds)
+    if (isKindValid(kind))
         getKindsStateArray()[static_cast<EnumType_t>(kind)] = enableFlag;
     LOCAL_DEBUG( fmt::print(FMT_STRING("SETKIND_B_{}={}/"), static_cast<int>(kind), enableFlag); getKindsStateArray(); fmt::print("\n"); )
 }
 
 void Settings::setLoggerKindState(SentryLogger::Kind kind, int value)
 {
-    if (kind < Kind::NumberOfKinds)
+    if (isKindValid(kind))
         getKindsStateArray()[static_cast<EnumType_t>(kind)] = value;
     LOCAL_DEBUG( fmt::print(FMT_STRING("SETKIND_I_{}={}/"), static_cast<int>(kind), value); getKindsStateArray(); fmt::print("\n"); )
 }
 
 void Settings::setLoggerKindState(SentryLogger::Kind kind, SentryLogger::Level value)
 {
-    if (kind < Kind::NumberOfKinds)
+    if (isKindValid(kind))
         getKindsStateArray()[static_cast<EnumType_t>(kind)] = static_cast<int>(value);
 }
 
@@ -160,6 +190,11 @@ void Settings::setPrintContextFlag(bool flag)
     printContextFlag_s = flag;
 }
 
+SentryLogger::Level Settings::getDefaultLevel()
+{
+    return defaultSentryLoggerLevel_s;
+}
+
 void Settings::setDefaultLogLevel(SentryLogger::Level level)
 {
     LOCAL_DEBUG( fmt::print(FMT_STRING("setDefaultLogLevel {}->{}\n"), static_cast<int>(logLevel_s), static_cast<int>(level));)
@@ -189,10 +224,10 @@ void Settings::setCutoffNamespaces(std::vector<std::string> arr)
 
 void Settings::setKindNames(const std::vector<KindNamePair>& names)
 {
-    kindNamesStr.resize( static_cast<SentryLogger::EnumType_t>(SentryLogger::Kind::NumberOfKinds) );
+    kindNamesStr.resize( static_cast<EnumType_t>(getNumberOfKinds()) );
     for (auto p : names)
     {
-        if (p.kind_ < Kind::NumberOfKinds)
+        if (static_cast<EnumType_t>(p.kind_) < getNumberOfKinds())
             kindNamesStr[ static_cast<unsigned>(p.kind_)] = p.name_;
     }
 
@@ -258,7 +293,7 @@ Settings::TemporarySettings::TemporarySettings(std::vector<Settings::Operation> 
             auto kind = static_cast<SentryLogger::Kind>(op.enumValue_);
             //@todo -- should be int
             bool flag = op.value_;
-        LOCAL_DEBUG(fmt::print("temp_set_kind{}={}\n", static_cast<int>(kind), flag);)
+            LOCAL_DEBUG(fmt::print("temp_set_kind{}={}\n", static_cast<int>(kind), flag);)
             if (rollbackOnlyChanged && flag == Settings::isKindAllowed(kind))
                 continue;
             
@@ -372,11 +407,15 @@ SentryLogger::SentryLogger(const char* prettyName,
                            InitArgs args /*={}*/)
     : flags_(args.flags)
     , mainLogLevel_(args.enabled ? transformLogLevel(args.level) : Level::Off)
-    , kind_(args.kind > Kind::NumberOfKinds ? Kind::Off : args.kind)
+    , kind_(static_cast<EnumType_t>(args.kind) >= getNumberOfKinds() ? Kind::Off
+                                                                     : args.kind)
     , relatedObj_(args.object)
     , contextName_(name)
     , prettyName_(prettyName)
 {
+    if (kind_ < Kind::Off)
+         kind_ = Kind::Off;
+
     logLevel_ = mainLogLevel_;
     LOCAL_DEBUG( fmt::print(FMT_STRING("ctor SENTRY - {}|{} | enabled_{}| kind_{}->{}|level_{}->{}\n"), name, prettyName?prettyName:"null", args.enabled, static_cast<int>(args.kind), static_cast<int>(kind_), static_cast<int>(args.level), static_cast<int>(logLevel_)); )
 
@@ -732,7 +771,7 @@ void SentryLogger::write(Kind kind,
     }
 
     // Format ""{0_LoggerPrefix}{1_NestedCombo}{2_KindName}{{{3_Context}}}{4_Prefix}{5_Body}{6_Suffix}"
-    auto s = TOSTR_FMT(FMT_STRING("{0}{1}{2}{{{3}}}{4}{5}{6}"),
+    auto s = TOSTR_FMT("{0}{1}{2}{{{3}}}{4}{5}{6}",
                        Settings::loggerPrefix_s,                           // 0
                        nested,                                             // 1
                        (Settings::printKindFlag_s) ? kindNamesStr[static_cast<EnumType_t>(kind)] : std::string_view(),  // 2
@@ -753,8 +792,7 @@ namespace
 // @note: argument validation is caller responsibility
 auto& allowedObjectSet(SentryLogger::Kind kind)
 {
-    static std::vector<std::unordered_set<const void*>> objSet(
-        static_cast<SentryLogger::EnumType_t>(SentryLogger::Kind::NumberOfKinds));
+    static std::vector<std::unordered_set<const void*>> objSet(getNumberOfKinds());
     return objSet[static_cast<SentryLogger::EnumType_t>(kind)];
 }
 }  // namespace
@@ -777,7 +815,7 @@ Guard::~Guard()
 
 void setAllowAll(bool flag, SentryLogger::Kind kind /* = SentryLogger::Kind::Default*/)
 {
-    if (kind >= SentryLogger::Kind::NumberOfKinds)
+    if (!isKindValid(kind))
         return;
     auto& objSet = allowedObjectSet(kind);
     LOCAL_DEBUG( fmt::print("register_all_{} {}\n", static_cast<int>(kind), flag) );
@@ -789,7 +827,7 @@ void setAllowAll(bool flag, SentryLogger::Kind kind /* = SentryLogger::Kind::Def
 
 void registerObject(SentryLogger::Kind kind, const void* objPtr)
 {
-    if (kind >= SentryLogger::Kind::NumberOfKinds || !objPtr)
+    if (!isKindValid(kind) || !objPtr)
         return;
     LOCAL_DEBUG( fmt::print("register_{} {}\n", static_cast<int>(kind), objPtr) );
     auto& objSet = allowedObjectSet(kind);
@@ -798,7 +836,7 @@ void registerObject(SentryLogger::Kind kind, const void* objPtr)
 
 void deregisterObject(SentryLogger::Kind kind, const void* objPtr)
 {
-    if (kind >= SentryLogger::Kind::NumberOfKinds || !objPtr)
+    if (!isKindValid(kind) || !objPtr)
         return;
     LOCAL_DEBUG( fmt::print("DEregister_{} {}\n", static_cast<int>(kind), objPtr) );
     auto& objSet = allowedObjectSet(kind);
@@ -810,7 +848,7 @@ void deregisterObject(SentryLogger::Kind kind, const void* objPtr)
 bool isAllowedObj(const void* objPtr,
                   SentryLogger::Kind kind /*= SentryLogger::Kind::Default*/)
 {
-    if (kind >= SentryLogger::Kind::NumberOfKinds || !objPtr)
+    if (!isKindValid(kind) || !objPtr)
         return false;
     LOCAL_DEBUG( fmt::print("isAllowedObj{} {}\n", static_cast<int>(kind), objPtr) );
     auto& objSet = allowedObjectSet(kind);
