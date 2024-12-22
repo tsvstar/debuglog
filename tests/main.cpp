@@ -268,10 +268,10 @@ int main()
     std::cout<< "\n *** DEBUGLOG module - CONDITIONAL COMPILE ***\n";
     tsv::debuglog::tests::test_sentry2::run();
 
-/*
+
     std::cout<< "\n *** OBJLOG module ***\n";
     tsv::debuglog::tests::objlog::run();
-
+/*
     std::cout<< "\n *** DEBUGWATCH module ***\n";
     test_watcher();
 */

@@ -96,6 +96,7 @@ set(TEST_SOURCES
     tests/test_tostr.cpp
     tests/test_sentry.cpp
     tests/test_sentry_extra.cpp
+    tests/test_objlog.cpp
     tests/debuglog_tostr_my_handler.cpp
 )
 

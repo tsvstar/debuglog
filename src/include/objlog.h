@@ -14,9 +14,8 @@
 */
 
 #include <string>
-
-// Reset possible previous #define ObjLogger to make correct declaration below
-#undef ObjLogger
+#include <vector>
+#include "debuglog_enum.h"
 
 namespace tsv::debuglog
 {
@@ -28,42 +27,64 @@ namespace tsv::debuglog
    1. Add private member to class
            ObjLogger debug_sentry_;
    2. Add to initalization list of ctor
-             ,debug_sentry_( this, "ClassName", backtracedepth, "CommentIfNeeded")
+             ,debug_sentry_( this, "ClassName"[, backtracedepth, "CommentIfNeeded", level, kind])
    3. Add to initalization list of copy ctor
              ,debug_sentry_( obj.debug_sentry_ )
    To disable logging of some object class - just replace "this" to nullptr
 */
 
-class ObjLogger
+class ObjLoggerImpl
 {
-    public:
-        ObjLogger( void* owner, const char* className, int depth=0, const char* comment="", SentryLogger::Level level = SentryLogger::Level::Default, SentryLogger::Kind kind = SentryLogger::Kind::Tracked);
-        ObjLogger( void* owner, void* copied_from, const char* className, int depth, const char* comment, SentryLogger::Level level = SentryLogger::Level::Default, SentryLogger::Kind kind = SentryLogger::Kind::Tracked);
-        ObjLogger( const ObjLogger& obj );
-        ObjLogger( const ObjLogger&& obj );
-        ObjLogger& operator=( const ObjLogger& obj );
-        //ObjLogger& ObjLogger::operator=( const ObjLogger&& obj );    // not implemented yet
+public:
+    ObjLoggerImpl(const void* owner,
+                  const char* className,
+                  int depth = 0,
+                  const char* comment = "",
+                  sentry_enum::Level level = sentry_enum::Level::Default,
+                  sentry_enum::Kind kind = sentry_enum::Kind::Tracked);
 
-        ~ObjLogger();
+    ObjLoggerImpl(const void* owner,
+                  const void* copied_from,
+                  const char* className,
+                  int depth,
+                  const char* comment,
+                  sentry_enum::Level level,
+                  sentry_enum::Kind kind);
 
-        // say that all these objects are equal ( to not influe onto trivial classes )
-        bool operator==( const ObjLogger& ) { return true; }
-        bool operator<( const ObjLogger& )  { return false; }
+    ObjLoggerImpl(const ObjLoggerImpl& obj);
+    ObjLoggerImpl(const ObjLoggerImpl&& obj);
+    ObjLoggerImpl& operator=(const ObjLoggerImpl& obj);
+    // ObjLogger& ObjLogger::operator=( const ObjLoggerImpl&& obj );    // not implemented yet
 
-        static void printTrackedPtr( SentryLogger::Level level, const char* className = nullptr, SentryLogger::Kind kind = SentryLogger::Kind::Tracked);
+    ~ObjLoggerImpl();
 
-    public:
-        // Settings
-        static bool includeContextName_s;   // if true, then logging will include current context name
+    // say that all these objects are equal ( to not influe onto trivial classes )
+    bool operator==(const ObjLoggerImpl&) { return true; }
+    bool operator<(const ObjLoggerImpl&) { return false; }
 
-    public:
-        int depth_;                 // how many stacktrace records print on
+    static void printTrackedPtr(const char* className = nullptr,
+                                sentry_enum::Level level = sentry_enum::Level::Default,
+                                sentry_enum::Kind kind = sentry_enum::Kind::Tracked);
 
-    private:
-        const int offs_;            // offset of ObjLogger from begin of owner
-        std::string className_;
-        SentryLogger::Kind kind_;
-        SentryLogger::Level level_;
+    auto getKind() const { return kind_; }
+    auto getLevel() const { return level_; }
+
+public:
+    // Settings
+    static bool includeContextName_s;  // if true, then logging will include current context name
+
+public:
+    int depth_;  // how many stacktrace records print on
+
+private:
+    sentry_enum::Kind kind_;
+    sentry_enum::Level level_;
+
+    // Offset of ObjLogger from begin of owner.
+    // <0 means "do not track"
+    const int offs_;
+
+    std::string className_;
 };
 
 // Stub class which replace real one if OBJ logging is disabled
@@ -72,30 +93,46 @@ class ObjLogEmptyClass
     public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-        ObjLogEmptyClass ( void* ptr, const char* className, int depth=0, const char* comment="", SentryLogger::Kind kind = SentryLogger::Kind::Default, SentryLogger::Level level = SentryLogger::Level::Default ) {}
-        ObjLogEmptyClass ( void* ptr, void* copied_from, const char* className, int depth, const char* comment, SentryLogger::Kind kind = SentryLogger::Kind::Default, SentryLogger::Level level = SentryLogger::Level::Default ) {}
-        static void printTrackedPtr( const char* className = nullptr ) {}
+        ObjLogEmptyClass(const void* ptr,
+                         const char* className,
+                         int depth = 0,
+                         const char* comment = "",
+                         sentry_enum::Level level = sentry_enum::Level::Default,
+                         sentry_enum::Kind kind = sentry_enum::Kind::Tracked)
+        {}
+        ObjLogEmptyClass(const void* ptr,
+                         const void* copied_from,
+                         const char* className,
+                         int depth,
+                         const char* comment,
+                         sentry_enum::Level level,
+                         sentry_enum::Kind kind)
+        {}
+        static void printTrackedPtr(const char* className = nullptr) {}
+        auto getKind() const { return sentry_enum::Kind::Off; }
+        auto getLevel() const { return sentry_enum::Level::Off; }
 #pragma GCC diagnostic pop
-    private:
 };
 
 } // namespace tsv::debuglog
-#endif
 
 /**
     YES, that is the end of header guard.
     Section below make possible turn on/off obj logging
     inside of header
 */
+#endif
 
-// Is ObjLogger object real
 #ifndef DEBUG_OBJLOG
 #define DEBUG_OBJLOG 1
 #endif
 
-#undef ObjLogger
+namespace tsv::debuglog
+{
 #if DEBUG_OBJLOG
+using ObjLogger = ObjLoggerImpl;
 #else
-// ObjLogging is forbidden
-#define ObjLogger ObjLogEmptyClass
+using ObjLogger = ObjLogEmptyClass;
+static_assert(false,"OFF");
 #endif
+}

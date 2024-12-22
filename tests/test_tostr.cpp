@@ -214,10 +214,11 @@ bool test_tostr()
     std::set<KnownClass> mySet{k1, k2};
     std::map<std::string, KnownClass> myMap{ {"first", k1}, {"second",k2}};
 
-    test( extended(k2) );
-    test( join(mySet));
-    test( join(myMap));
-    test( join(myMap,"|",ENUM_TOSTR_EXTENDED));
+    test(extended(k2), "ExtAppearance#71/72");
+    test(join(mySet), "BaseAppearance#44, BaseAppearance#71");
+    test(join(myMap), "{\"first\": BaseAppearance#44}, {\"second\": BaseAppearance#71}");
+    test(join(myMap, "|", ENUM_TOSTR_EXTENDED),
+         "{\"first\": ExtAppearance#44/55}|{\"second\": ExtAppearance#71/72}");
 
     std::cout << "\n\nMACRO:\n";
 
@@ -243,6 +244,9 @@ bool test_tostr()
 
     test( TOSTR_ARGS( "ARGS+JOIN:", x, f, "; More tests:", vv, "--> ", tsv::util::tostr::Mode::JoinOnce, add(x,17), y ),
                     "ARGS+JOIN: x = -10, f = 0.100000; More tests: vv = \"str\"--> 7, y = 15" );
+
+    test(TOSTR_ARGS("EXT:", k2, Details::Extended, k2),
+         "EXT: k2 = BaseAppearance#71, k2 = ExtAppearance#71/72");
 
     // Nested TOSTR_* macro added as is, so could be used in SENTRY_* macro to replace content
     test( TOSTR_ARGS( "NESTED: ", TOSTR_JOIN("join_",1), "; ", TOSTR_FMT("fmt_{}",2)), //
