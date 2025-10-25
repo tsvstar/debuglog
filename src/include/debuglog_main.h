@@ -57,6 +57,9 @@
 // Enforce __VA_OPT__ usage if it is possible to avoid non-standard tricks
 #if __cplusplus >= 202002L || (defined(__clang__) && __clang_major__ > 8) || (__GNUC__ > 9)
 #define __VA_W_COMMA(...) __VA_OPT__(,) __VA_ARGS__
+// Macro above is best way to resolve intentionally omited variadic macro
+// But before C++20 produce warning - so suppress it
+#pragma GCC diagnostic ignored "-Wvariadic-macro-arguments-omitted"
 #else
 #define __VA_W_COMMA(...) , ## __VA_ARGS__
 // Fail early if something wrong (some versions of GCC doesn't process this extension for unknown reason)
@@ -95,7 +98,7 @@ static_assert(false __VA_W_COMMA(), "Unable to correctly concatenate empty __VA_
 #define SAY_JOIN( ...)  SENTRYLOGGER_PRINT()( TOSTR_JOIN(__VA_ARGS__) )
 #define SAY_FMT(...)    SENTRYLOGGER_PRINT()( TOSTR_FMT(__VA_ARGS__) )
 
-#define SAY_STACKTRACE(...)  EXECUTE_IF_DEBUGLOG( if (sentryLogger.isAllowedStage(SentryLogger::Stage::Event)) [[clang::noinline]] [[gnu::noinline]] sentryLogger.printStackTrace(__VA_ARGS__))
+#define SAY_STACKTRACE(...)  EXECUTE_IF_DEBUGLOG( if (sentryLogger.isAllowedStage(SentryLogger::Stage::Event)) sentryLogger.printStackTrace(__VA_ARGS__))
 #define SAY_AND_RETURN(arg, ...) EXECUTE_IF_DEBUGLOG2( \
             {decltype(auto) rv = arg; if (sentryLogger.isAllowed(SentryLogger::Stage::Leave)) sentryLogger.setReturnValueStr( ::tsv::util::tostr::toStr(rv, ::tsv::util::tostr::ENUM_TOSTR_REPR) + TOSTR_JOIN(__VA_ARGS__) ); return rv; }, \
             return arg)  
@@ -112,7 +115,7 @@ static_assert(false __VA_W_COMMA(), "Unable to correctly concatenate empty __VA_
             std::string funcName = ::tsv::debuglog::resolveAddr2Name( funcPtr, ::tsv::debuglog::resolve::settings::btIncludeLine, true); \
             sentryLogger.print( "Call vfunc "+ funcName + suf ); } , \
             SENTRYLOGGER_DO_NOTHING_STANDALONE())
-        
+
 /**
  *  Common code
  */
@@ -398,10 +401,10 @@ inline SentryLogger::EnumType_t operator|(const SentryLogger::Flags v1,
 
 #define EXECUTE_IF_DEBUGLOG2( CodeEnabled, CodeDisabled ) CodeEnabled
 // Snippet which do nothing but euqiv to SENTRY_* (that is for disabled branch of conditional SENTRY_*_COND)
-#define SENTRYLOGGER_CREATE_0(...) using namespace ::tsv::debuglog; SentryLoggerStub sentryLogger; \
-     if (false) SentryLoggerStub SENTRYLOGGER_ENTER_0
+#define SENTRYLOGGER_CREATE_0(...) using namespace ::tsv::debuglog; [[maybe_unused]] SentryLoggerStub sentryLogger; \
+     if (false) [[maybe_unused]] SentryLoggerStub SENTRYLOGGER_ENTER_0
 // Arguments: pretty, context[, arg]
-#define SENTRYLOGGER_CREATE_1(...) using namespace ::tsv::debuglog; SentryLogger sentryLogger{__VA_ARGS__}; \
+#define SENTRYLOGGER_CREATE_1(...) using namespace ::tsv::debuglog; [[maybe_unused]] SentryLogger sentryLogger{__VA_ARGS__}; \
      if (sentryLogger.isAllowed(SentryLogger::Stage::Enter)) SentryLogger::EnterHelper SENTRYLOGGER_ENTER_1
 #define SENTRYLOGGER_PRINT(...) if (sentryLogger.isAllowedAndSetTempLevel(SentryLogger::Stage::Event __VA_W_COMMA(__VA_ARGS__))) sentryLogger.print
 

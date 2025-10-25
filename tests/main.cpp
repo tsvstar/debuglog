@@ -18,7 +18,7 @@
 namespace tsv::debuglog
 {
 // Redefinition of the library function to specify new max value of enum Kind
-EnumType_t getNumberOfKinds()
+sentry_enum::EnumType_t getNumberOfKinds()
 {
     static_assert(static_cast<unsigned>(sentry_enum::Kind::NumberOfKinds) == 25, "Wrong NumberOfKinds");
     return static_cast<sentry_enum::EnumType_t>(sentry_enum::Kind::NumberOfKinds);

@@ -23,6 +23,7 @@
 #include "test_tostr.h"
 #include "tostr_fmt_include.h"
 #include "main.h"
+#include <memory>
 
 namespace tsv::debuglog::tests
 {
@@ -67,11 +68,13 @@ struct Base
             SAY_DBG(s);
         }
     }
+    virtual ~Base() {}
 };
 
 struct Child : public Base
 {
     void run(std::string s) override { SAY_JOIN("child_run: ", s); }
+    virtual ~Child() {}
 };
 
 

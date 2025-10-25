@@ -4,6 +4,7 @@
 
 #include "tostr.h"
 #include "tostr_fmt_include.h"	// smart include of format library
+#include "tostr_variant.h"
 
 // For resolve::settings:btEnable
 #include "debugresolve.h"
@@ -15,7 +16,6 @@
 #include <string>
 #include <optional>
 #include <memory>
-#include <variant>
 #include <map>
 #include <set>
 
@@ -92,7 +92,7 @@ bool test_tostr()
     test( toStr(vv), "str");
     test( toStr(ss), "std_str");
     test( toStr(ss, ENUM_TOSTR_REPR), "\"std_str\"");
-#if !defined(PREVENT_MAGIC_ENUM) || !defined(PREVENT_REFLECT_ENUM)
+#if defined(DEBUGLOG_USEMAGIC_ENUM) || defined(DEBUGLOG_USEREFLECT_ENUM)
     test( toStr(e), "tsv::debuglog::tests::TestEnum::V2(4)");
 #else
     test( toStr(e), "tsv::debuglog::tests::TestEnum::4");
@@ -108,7 +108,7 @@ bool test_tostr()
     test( toStr(&ss), "0xADDR (std_str)", true );   // Pointer to known type shows its content
     test( toStr(&x), "0xADDR (-10)", true );         // (for POD types too)
     test( toStr(&c), "0xADDR (tsv::debuglog::tests::TempClass)", true );   // for unknown type - say its typename
-#if !defined(PREVENT_MAGIC_ENUM) || !defined(PREVENT_REFLECT_ENUM)
+#if defined(DEBUGLOG_USEMAGIC_ENUM) || defined(DEBUGLOG_USEREFLECT_ENUM)
     test( toStr(&e), "0xADDR (tsv::debuglog::tests::TestEnum::V2(4))", true);
 #else
     test( toStr(&e), "0xADDR (tsv::debuglog::tests::TestEnum::4)", true);

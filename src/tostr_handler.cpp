@@ -8,6 +8,7 @@
 
 #include "tostr_fmt_include.h"
 #include "tostr.h"
+#include <unordered_map>
 
 using namespace std;
 

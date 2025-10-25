@@ -13,7 +13,7 @@
 #include <typeinfo>         // typeid
 
 // Include enum reflection library
-#if !defined(PREVENT_REFLECT_ENUM) && __has_include(<reflect>) && __cplusplus >= 202002L
+#if defined(DEBUGLOG_USEREFLECT_ENUM) && __has_include(<reflect>) && __cplusplus >= 202002L
    // Prioritized choice - qlibs/reflect as best compile-performance
    // temporary NTEST define is raised to improve compilation performance
 #ifdef NTEST
@@ -23,16 +23,16 @@
 #include <reflect>
 #undef NTEST
 #endif
-#define PREVENT_MAGIC_ENUM 1
+#define DEBUGLOG_USEMAGIC_ENUM 0
 
-#elif !defined(PREVENT_MAGIC_ENUM) && __has_include(<magic_enum.hpp>)
+#elif defined(DEBUGLOG_USEMAGIC_ENUM) && __has_include(<magic_enum.hpp>)
    // second choice - magic_enum as C++17 compatible
 #include <magic_enum.hpp>
-#define PREVENT_REFLECT_ENUM 1
+#define DEBUGLOG_USEREFLECT_ENUM 0
 
 #else
-#define PREVENT_REFLECT_ENUM 1
-#define PREVENT_MAGIC_ENUM 1
+#define DEBUGLOG_USEREFLECT_ENUM 0
+#define DEBUGLOG_USEMAGIC_ENUM 0
 
 #endif
 
@@ -72,8 +72,6 @@ template<class T> class shared_ptr;
 template<class T> class weak_ptr;
 template<typename... Types> class variant;
 template <typename T1, typename T2> struct pair;
-
-template<typename Visitor, typename... Variants> constexpr decltype(auto) visit(Visitor&&, Variants&&...);
 }
 
 /********* MAIN PART **********/
@@ -209,12 +207,12 @@ __toString(const T& value, int /*mode*/)
 {
     std::string typeName = ::tsv::debuglog::demangle(typeid(T).name()) + "::";
     auto numValue = static_cast<std::underlying_type_t<T>>(value);
-#if !defined(PREVENT_REFLECT_ENUM)
+#if !defined(DEBUGLOG_USEREFLECT_ENUM)
    typeName += ::reflect::enum_name(value);
    if (tsv::util::tostr::settings::showEnumInteger)
        return  { typeName + "(" + std::to_string(numValue) + ")", true };
    return  { typeName, true };
-#elif !defined(PREVENT_MAGIC_ENUM)
+#elif !defined(DEBUGLOG_USEMAGIC_ENUM)
    typeName += ::magic_enum::enum_name(value);
    if (tsv::util::tostr::settings::showEnumInteger)
        return  { typeName + "(" + std::to_string(numValue) + ")", true };
@@ -361,14 +359,6 @@ std::string toStr(const char* v, int mode = ENUM_TOSTR_DEFAULT);
  */
 namespace impl
 {
-
-template<typename... Types>
-ToStringRV __toString(const std::variant<Types...>& value, int mode)
-{
-    return std::visit([mode](const auto& val) -> ToStringRV {
-            return { tsv::util::tostr::toStr(val, mode), true};
-         }, value);
-}
 
 template<typename T, class Deleter>
 ToStringRV __toString(const std::unique_ptr<T, Deleter>& value, int mode)

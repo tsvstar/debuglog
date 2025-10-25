@@ -102,8 +102,8 @@ Examples of usage and extending could be found at tests/test_tostr.cpp
 
 
 1.5. Settings
-    PREVENT_MAGIC_ENUM - if defined then save compilation time by excluding magic_enum library.
-        Consequence of that is "id" instead of meaningfull names for enum is printed.
+    DEBUGLOG_USE_REFLECT - if 1 then use reflect library to populate meaningfull names for enum values.
+    DEBUGLOG_USEMAGIC_ENUM - if 1 then use more heavy but more known magic_enum library for the same purpose
 
     tsv::util::tostr::settings::
       showNullptrType - if true, print type of pointer for nullptr case

@@ -101,8 +101,8 @@ sentry_enum::EnumType_t __attribute__((weak)) getNumberOfKinds()
 int* Settings::getKindsStateArray()
 {
     // Default everything is turned off
-    static std::vector<int> kindsStateArray{
-        static_cast<std::vector<int>::size_type>(getNumberOfKinds() + 1)};
+    static std::vector<int> kindsStateArray(
+        static_cast<std::vector<int>::size_type>(getNumberOfKinds() + 1));
     LOCAL_DEBUG(std::string arr;
                 for (int i
                      : kindsStateArray) arr += "." + std::to_string(i);
@@ -692,11 +692,13 @@ const std::string& LastSentryLogger::getContextName()
     return SentryLogger::getLast()->getContextName();
 }
 
+[[gnu::noinline]] 
 void LastSentryLogger::printStackTrace()
 {
-    return printStackTrace({}, Level::This);
+    return printStackTrace({-1, 1}, Level::This);
 }
 
+[[gnu::noinline]] 
 void LastSentryLogger::printStackTrace(StackTraceArgs args,
                                        SentryLogger::Level level /*= Level::This*/)
 {
